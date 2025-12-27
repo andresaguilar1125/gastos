@@ -1,0 +1,2 @@
+# gastos
+streamlit gastos app
