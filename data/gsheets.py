@@ -50,21 +50,27 @@ def load_gsheet() -> pd.DataFrame:
         raise RuntimeError("No sheets found to load.")
     return pd.concat(dfs, ignore_index=True)
 
-def transform_gsheet(df: pd.DataFrame) -> pd.DataFrame:
-    """Transform the loaded Google Sheets DataFrame by parsing dates and sorting.
+def transform_gsheet() -> pd.DataFrame:
+    """Transform the loaded Google Sheets DataFrame by parsing dates and sorting."""
 
-    Args:
-        df (pd.DataFrame): DataFrame loaded from Google Sheets.
+    # Get base dataframe
+    df = load_gsheet()
 
-    Returns:
-        pd.DataFrame: Transformed DataFrame with parsed dates and sorted entries.
-    """
-    # Recibos
-    mask = (df['Categoria'] == 'Recibos') & (df['Comercio'] == 'Kolbi')
-    # print([mask]) #REVIEW only printing false where some values should be true
-    df.loc[mask, 'Persona'] = 'Andres'
-    
-    # Super
-    df['Persona'] = 'Casa'
+    # Set Persona based on Categoria and Comercio
+    mask_super = df['Categoria'] == 'Super'
+    mask_recibos = df['Categoria'] == 'Recibos'
+
+    # For Super: always Casa
+    df.loc[mask_super, 'Persona'] = 'Casa'
+
+    # For Recibos: Kolbi → Andres, others → Casa
+    df.loc[mask_recibos & (df['Comercio'] == 'Kolbi'), 'Persona'] = 'Andres'
+    df.loc[mask_recibos & (df['Comercio'] != 'Kolbi'), 'Persona'] = 'Casa'
+
+    # Add Periodo column
+    df['Periodo'] = df['Fecha'].dt.to_period('M').astype(str)
+
+    # Add Semana column
+    df['Semana'] = df['Fecha'].dt.day.apply(lambda x: f"W{((x - 1) // 7) + 1}")
     
     return df

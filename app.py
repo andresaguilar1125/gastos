@@ -5,7 +5,7 @@ from data.gsheets import transform_gsheet, load_gsheet
 
 st.set_page_config(page_title="GSheet Data Viewer", layout="wide")
 
-df = transform_gsheet(load_gsheet())
+df = transform_gsheet()
 
 with st.sidebar:
     st.title("Gastos")
