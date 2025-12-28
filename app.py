@@ -1,12 +1,12 @@
 import streamlit as st
 import pandas as pd
 from datetime import date
-from data.gsheets import transform_gsheet
-from style import style_dataframe
+from gsheets import transform, group, style
 
 st.set_page_config(page_title="GSheet Data Viewer", layout="wide")
 
-df = transform_gsheet()
+df = transform()
+df_grouped = group()
 
 # in app.py (sidebar)
 options_periodo = ['All'] + sorted(df["Periodo"].unique().tolist())
@@ -19,13 +19,30 @@ options_persona = ['All'] + sorted(df["Persona"].unique().tolist())
 _persona = st.selectbox("Persona", options_persona, index=0)
 
 # filtering (replace previous df[...] expression)
-mask = pd.Series(True, index=df.index)
+filter = pd.Series(True, index=df.index)
 if _periodo != 'All':
-    mask &= df['Periodo'] == _periodo
+    filter &= df['Periodo'] == _periodo
 if _categoria != 'All':
-    mask &= df['Categoria'] == _categoria
+    filter &= df['Categoria'] == _categoria
 if _persona != 'All':
-    mask &= df['Persona'] == _persona
+    filter &= df['Persona'] == _persona
 
-st.write(style_dataframe(df[mask]))
+# slider for detailed or grouped view
+view_option = st.selectbox("View Type", ["Detailed", "Grouped"])
+if view_option == "Detailed":
+    df = df[filter]
+else:
+    df = df_grouped[filter]
 
+# Add dropdown menu for column selection
+columns_available = ['All'] + df.columns.unique().tolist()
+columns_to_keep = st.multiselect("Select Columns to Display", columns_available, default=columns_available[1:])
+
+# If 'All' is selected, keep all columns
+if 'All' in columns_to_keep:
+    columns_to_keep = df.columns.tolist()
+
+# Apply the style function with selected columns
+df = style(df, columns_to_keep)
+
+df

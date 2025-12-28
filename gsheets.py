@@ -1,9 +1,9 @@
 import pandas as pd
 import streamlit as st
-from typing import Optional
+# from typing import Optional
 
 @st.cache_data
-def load_gsheet() -> pd.DataFrame:
+def load() -> pd.DataFrame:
     """Load data from a Google Sheets CSV URL stored in Streamlit secrets under the
     top-level key `gs`.
 
@@ -50,11 +50,11 @@ def load_gsheet() -> pd.DataFrame:
         raise RuntimeError("No sheets found to load.")
     return pd.concat(dfs, ignore_index=True)
 
-def transform_gsheet() -> pd.DataFrame:
+def transform() -> pd.DataFrame:
     """Transform the loaded Google Sheets DataFrame by parsing dates and sorting."""
 
     # Get base dataframe
-    df = load_gsheet()
+    df = load()
 
     # Set Persona based on Categoria and Comercio
     mask_super = df['Categoria'] == 'Super'
@@ -74,3 +74,37 @@ def transform_gsheet() -> pd.DataFrame:
     df['Semana'] = df['Fecha'].dt.day.apply(lambda x: f"W{((x - 1) // 7) + 1}")
     
     return df
+
+def group () -> pd.DataFrame:
+    """Group the transformed DataFrame by Periodo, Categoria, Persona, and Semana,
+    summing the Monto for each group.
+    """
+
+    df = transform()
+
+    # Group by Periodo, Categoria, Persona, Semana and sum Monto
+    grouped_df = df.groupby(
+        ['Fecha', 'Comercio', 'Periodo', 'Categoria', 'Persona', 'Semana'], as_index=False
+    )['Monto'].sum()
+
+    return grouped_df
+
+def style(df: pd.DataFrame, columns_to_keep: list[str]) -> pd.DataFrame:
+    """
+    Dynamically style a DataFrame by selecting specific columns and applying formatting.
+
+    Args:
+        df (pd.DataFrame): The input DataFrame.
+        columns_to_keep (list[str]): List of columns to retain in the DataFrame.
+
+    Returns:
+        pd.DataFrame: A styled DataFrame with the specified columns and formatting applied.
+    """
+    # Keep desired columns for layout
+    df = df[[col for col in columns_to_keep if col in df.columns]]
+
+    # Return desired format columns
+    return df.style.format({
+        'Monto': '{:,.0f}',
+        'Fecha': lambda t: t.strftime("%m/%d/%y %I:%M %p") if pd.notnull(t) else "",
+    })
