@@ -205,3 +205,9 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Streamlit secrets file
+.streamlit/secrets.toml
+
+# Other files
+data/__pycache__
