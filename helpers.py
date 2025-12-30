@@ -1,9 +1,9 @@
 import pandas as pd
 import streamlit as st
-# from typing import Optional
 
+# ----------- Data
 @st.cache_data
-def load() -> pd.DataFrame:
+def gs_load() -> pd.DataFrame:
     """Load data from a Google Sheets CSV URL stored in Streamlit secrets under the
     top-level key `gs`.
 
@@ -50,11 +50,11 @@ def load() -> pd.DataFrame:
         raise RuntimeError("No sheets found to load.")
     return pd.concat(dfs, ignore_index=True)
 
-def transform() -> pd.DataFrame:
+def df_detailed() -> pd.DataFrame:
     """Transform the loaded Google Sheets DataFrame by parsing dates and sorting."""
 
     # Get base dataframe
-    df = load()
+    df = gs_load()
 
     # Set Persona based on Categoria and Comercio
     mask_super = df['Categoria'] == 'Super'
@@ -72,39 +72,67 @@ def transform() -> pd.DataFrame:
 
     # Add Semana column
     df['Semana'] = df['Fecha'].dt.day.apply(lambda x: f"W{((x - 1) // 7) + 1}")
-    
+
+    # Apply formatting to existing dataframe
+    df = df.assign(
+        Monto=lambda x: x['Monto'].apply(lambda m: f"{m:,.0f}"),
+        Fecha=lambda x: x['Fecha'].apply(
+            lambda d: d.strftime("%m/%d/%y %I:%M %p") if pd.notnull(d) else ""
+        )
+    )
+
+    # Sort values Z-A by Fecha
+    df = df.sort_values(by="Fecha", ascending=False).reset_index(drop=True)
+
     return df
 
-def group () -> pd.DataFrame:
+def df_grouped() -> pd.DataFrame:
     """Group the transformed DataFrame by Periodo, Categoria, Persona, and Semana,
-    summing the Monto for each group.
+    based on the existing dataframesumming the Monto for each group.
     """
-
-    df = transform()
-
-    # Group by Periodo, Categoria, Persona, Semana and sum Monto
-    grouped_df = df.groupby(
-        ['Fecha', 'Comercio', 'Periodo', 'Categoria', 'Persona', 'Semana'], as_index=False
+    # Get the detailed dataframe first
+    detailed_df = df_detailed()
+    
+    # Store original data types
+    original_fecha_dtype = detailed_df['Fecha'].dtype
+    
+    # Ensure Monto is numeric for grouping
+    detailed_df['Monto'] = pd.to_numeric(detailed_df['Monto'].str.replace(',', ''), errors='coerce')
+    
+    # Group by column series and aggregate by monto
+    df = detailed_df.groupby(
+        ['Fecha', 'Comercio', 'Periodo', 'Categoria', 'Persona', 'Semana'], 
+        as_index=False
     )['Monto'].sum()
 
-    return grouped_df
+    # Convert back to proper types for formatting
+    df = df.assign(
+        Monto=lambda x: x['Monto'].apply(lambda m: f"{m:,.0f}"),
+        Fecha=lambda x: x['Fecha'].apply(
+            lambda d: pd.to_datetime(d).strftime("%m/%d/%y %I:%M %p") if pd.notnull(d) else ""
+        )
+    )
 
-def style(df: pd.DataFrame, columns_to_keep: list[str]) -> pd.DataFrame:
+    # Sort values Z-A by Fecha
+    df = df.sort_values(by="Fecha", ascending=False).reset_index(drop=True)
+    return df
+
+# ----------- Constants
+def get_unique(column: str, df: pd.DataFrame) -> list:
     """
-    Dynamically style a DataFrame by selecting specific columns and applying formatting.
-
-    Args:
-        df (pd.DataFrame): The input DataFrame.
-        columns_to_keep (list[str]): List of columns to retain in the DataFrame.
-
-    Returns:
-        pd.DataFrame: A styled DataFrame with the specified columns and formatting applied.
+    Get unique values from a specified column in the dataframe,
+    prepended with 'All' option.
     """
-    # Keep desired columns for layout
-    df = df[[col for col in columns_to_keep if col in df.columns]]
+    return ['All'] + sorted(df[column].unique().tolist())
 
-    # Return desired format columns
-    return df.style.format({
-        'Monto': '{:,.0f}',
-        'Fecha': lambda t: t.strftime("%m/%d/%y %I:%M %p") if pd.notnull(t) else "",
-    })
+# ----------- UI Streamlit
+def st_selectbox(column: str, df: pd.DataFrame) -> str:
+    """
+    Return a Streamlit selectbox for the specified column
+    using unique values from the dataframe.
+    """
+    return st.selectbox(
+        label = column,
+        options = get_unique(column, df),
+        index = 0
+    )

@@ -1,48 +1,94 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
-from gsheets import transform, group, style
+import plotly.express as px
+from helpers import df_detailed, df_grouped
 
 st.set_page_config(page_title="GSheet Data Viewer", layout="wide")
 
-df = transform()
-df_grouped = group()
+# Load dataframe mode
+view_mode =st.selectbox(
+        label = "View Type",
+        options = ["Detailed", "Grouped"],
+        index = 1
+    )
 
-# in app.py (sidebar)
-options_periodo = ['All'] + sorted(df["Periodo"].unique().tolist())
-_periodo = st.selectbox("Periodo", options_periodo, index=0)
-
-options_categoria = ['All'] + sorted(df["Categoria"].unique().tolist())
-_categoria = st.selectbox("Categoria", options_categoria, index=0)
-
-options_persona = ['All'] + sorted(df["Persona"].unique().tolist())
-_persona = st.selectbox("Persona", options_persona, index=0)
-
-# filtering (replace previous df[...] expression)
-filter = pd.Series(True, index=df.index)
-if _periodo != 'All':
-    filter &= df['Periodo'] == _periodo
-if _categoria != 'All':
-    filter &= df['Categoria'] == _categoria
-if _persona != 'All':
-    filter &= df['Persona'] == _persona
-
-# slider for detailed or grouped view
-view_option = st.selectbox("View Type", ["Detailed", "Grouped"])
-if view_option == "Detailed":
-    df = df[filter]
+# Load dataframe
+if view_mode == "Detailed":
+    df_tabs = df_detailed()
 else:
-    df = df_grouped[filter]
+    df_tabs = df_grouped()
 
-# Add dropdown menu for column selection
-columns_available = ['All'] + df.columns.unique().tolist()
-columns_to_keep = st.multiselect("Select Columns to Display", columns_available, default=columns_available[1:])
+# for debugging
+st.expander('df_tabs preview', expanded=False).dataframe(df_tabs)
 
-# If 'All' is selected, keep all columns
-if 'All' in columns_to_keep:
-    columns_to_keep = df.columns.tolist()
+# Tabs for categories
+tabs = st.tabs(["Logs", "Mes", "2025", "Familiar", "Medico", "Recibos", "Restaurantes", "Super", "Viajes"])
 
-# Apply the style function with selected columns
-df = style(df, columns_to_keep)
+with tabs[0]:
+    st.write("tab")
 
-df
+with tabs[1]:
+    st.write("tab")
+    st.dataframe(
+        df_tabs[df_tabs['Periodo'] == '2025-12']
+    )
+
+    fig = px.histogram(
+        df_tabs[df_tabs['Periodo'] == '2025-12'],
+        x='Categoria',
+        y='Monto',
+        title='Monto by Categoria for 2025-12',
+        labels={'Monto': 'Total Monto', 'Categoria': 'Categoria'},
+        histfunc='sum'
+    )
+
+    fig
+
+
+
+
+
+
+with tabs[2]:
+    st.write("tab")
+
+with tabs[3]:
+    st.write("tab")
+
+    st.dataframe(
+        df_tabs[df_tabs['Categoria'] == 'Familiar']
+    )
+
+with tabs[4]:
+    st.write("tab")
+
+    st.dataframe(
+        df_tabs[df_tabs['Categoria'] == 'Medico']
+    )
+with tabs[5]:
+    st.write("tab")
+
+    st.dataframe(
+        df_tabs[df_tabs['Categoria'] == 'Recibos']
+    )
+
+with tabs[6]:
+    st.write("tab")
+
+    st.dataframe(
+        df_tabs[df_tabs['Categoria'] == 'Restaurantes']
+    )
+
+with tabs[7]:
+    st.write("tab")
+
+    st.dataframe(
+        df_tabs[df_tabs['Categoria'] == 'Super']
+    )
+
+with tabs[8]:
+    st.write("tab")
+
+    st.dataframe(
+        df_tabs[df_tabs['Categoria'] == 'Viajes']
+    )
