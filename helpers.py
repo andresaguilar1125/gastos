@@ -73,13 +73,13 @@ def df_detailed() -> pd.DataFrame:
     # Add Semana column
     df['Semana'] = df['Fecha'].dt.day.apply(lambda x: f"W{((x - 1) // 7) + 1}")
 
-    # Apply formatting to existing dataframe
-    df = df.assign(
-        Monto=lambda x: x['Monto'].apply(lambda m: f"{m:,.0f}"),
-        Fecha=lambda x: x['Fecha'].apply(
-            lambda d: d.strftime("%m/%d/%y %I:%M %p") if pd.notnull(d) else ""
-        )
-    )
+    # # Apply formatting to existing dataframe
+    # df = df.assign(
+    #     Monto=lambda x: x['Monto'].apply(lambda m: f"{m:,.0f}"),
+    #     Fecha=lambda x: x['Fecha'].apply(
+    #         lambda d: d.strftime("%m/%d/%y %I:%M %p") if pd.notnull(d) else ""
+    #     )
+    # )
 
     # Sort values Z-A by Fecha
     df = df.sort_values(by="Fecha", ascending=False).reset_index(drop=True)
@@ -96,8 +96,8 @@ def df_grouped() -> pd.DataFrame:
     # Store original data types
     original_fecha_dtype = detailed_df['Fecha'].dtype
     
-    # Ensure Monto is numeric for grouping
-    detailed_df['Monto'] = pd.to_numeric(detailed_df['Monto'].str.replace(',', ''), errors='coerce')
+    # # Ensure Monto is numeric for grouping
+    # detailed_df['Monto'] = pd.to_numeric(detailed_df['Monto'].str.replace(',', ''), errors='coerce')
     
     # Group by column series and aggregate by monto
     df = detailed_df.groupby(
@@ -105,13 +105,13 @@ def df_grouped() -> pd.DataFrame:
         as_index=False
     )['Monto'].sum()
 
-    # Convert back to proper types for formatting
-    df = df.assign(
-        Monto=lambda x: x['Monto'].apply(lambda m: f"{m:,.0f}"),
-        Fecha=lambda x: x['Fecha'].apply(
-            lambda d: pd.to_datetime(d).strftime("%m/%d/%y %I:%M %p") if pd.notnull(d) else ""
-        )
-    )
+    # # Convert back to proper types for formatting
+    # df = df.assign(
+    #     Monto=lambda x: x['Monto'].apply(lambda m: f"{m:,.0f}"),
+    #     Fecha=lambda x: x['Fecha'].apply(
+    #         lambda d: pd.to_datetime(d).strftime("%m/%d/%y %I:%M %p") if pd.notnull(d) else ""
+    #     )
+    # )
 
     # Sort values Z-A by Fecha
     df = df.sort_values(by="Fecha", ascending=False).reset_index(drop=True)
