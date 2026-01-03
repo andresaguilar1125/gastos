@@ -137,5 +137,3 @@ def st_selectbox(column: str, df: pd.DataFrame) -> str:
         options = get_unique(column, df),
         index = 0
     )
-
-def 
