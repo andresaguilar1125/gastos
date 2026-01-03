@@ -125,6 +125,7 @@ def get_unique(column: str, df: pd.DataFrame) -> list:
     """
     return ['All'] + sorted(df[column].unique().tolist())
 
+#
 # ----------- UI Streamlit
 def st_selectbox(column: str, df: pd.DataFrame) -> str:
     """
@@ -136,3 +137,5 @@ def st_selectbox(column: str, df: pd.DataFrame) -> str:
         options = get_unique(column, df),
         index = 0
     )
+
+def 
