@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { dataStore, budgetStore, DEFAULT_BUDGETS } from '$lib/stores/index.svelte';
 	import { formatCurrency, evaluateSpend } from '$lib/budget/status';
-	import { CATEGORY_COLORS } from '$lib/config';
+	import { CATEGORY_COLORS, BUDGET_SCALE } from '$lib/config';
 	import Card from '$lib/components/Card.svelte';
 	import DeltaBadge from '$lib/components/DeltaBadge.svelte';
 	import NotaBarChart from '$lib/components/charts/NotaBarChart.svelte';
@@ -104,6 +104,12 @@
 	});
 
 	const status = $derived(budget ? evaluateSpend(total, budget) : null);
+
+	/** Budget bounds in real colones (stored values are in thousands). */
+	const budgetMinReal = $derived((budget?.min ?? 0) * BUDGET_SCALE);
+	const budgetMaxReal = $derived((budget?.max ?? 0) * BUDGET_SCALE);
+	const currentMonthReal = $derived(currentMonthSum);
+
 	const topComercio = $derived.by(() => {
 		const totals: Record<string, number> = {};
 		for (const row of categoryRows) {
@@ -154,16 +160,16 @@
 
 		<Card title="Resumen">
 			<dl class="space-y-3 text-sm">
-				<div class="flex items-center justify-between">
+					<div class="flex items-center justify-between">
 					<dt class="text-gray-500 dark:text-gray-400">Presupuesto</dt>
 					<dd class="font-semibold">
-						{formatCurrency(budget?.min ?? 0)} – {formatCurrency(budget?.max ?? 0)}
+						{formatCurrency(budgetMinReal)} – {formatCurrency(budgetMaxReal)}
 					</dd>
 				</div>
 				<div class="flex items-center justify-between">
 					<dt class="text-gray-500 dark:text-gray-400">Restante</dt>
 					<dd class="font-semibold">
-						{formatCurrency(Math.max(0, (budget?.max ?? 0) - total))}
+						{formatCurrency(Math.max(0, budgetMaxReal - total))}
 					</dd>
 				</div>
 				{#if status}
@@ -204,7 +210,7 @@
 	<Card title="Desglose por nota" subtitle="Valores del catálogo de la hoja (top 12)">
 		{#if notaSums.length}
 			<div class="h-[26rem] overscroll-contain">
-				<NotaBarChart data={notaSums} maxBudget={budget?.max} />
+				<NotaBarChart data={notaSums} maxBudget={budgetMaxReal} />
 			</div>
 		{:else}
 			<p class="text-sm text-gray-500">Sin movimientos para esta categoría.</p>

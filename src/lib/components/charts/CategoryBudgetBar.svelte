@@ -7,7 +7,7 @@
 	import type { EChartsOption } from 'echarts';
 	import type { Budgets } from '$lib/config';
 	import type { CategoryAggregate } from '$lib/types';
-	import { CATEGORY_COLORS } from '$lib/config';
+	import { CATEGORY_COLORS, BUDGET_SCALE } from '$lib/config';
 
 	use([BarChart, GridComponent, TooltipComponent, CanvasRenderer]);
 
@@ -29,8 +29,8 @@
 				}>;
 				const name = p[0]?.name ?? '';
 				const budget = budgets[name];
-				const min = budget?.min ?? 0;
-				const max = budget?.max ?? 0;
+				const min = (budget?.min ?? 0) * BUDGET_SCALE;
+				const max = (budget?.max ?? 0) * BUDGET_SCALE;
 				return `${name}<br/>Gasto: ₡${p[0]?.value.toLocaleString('es-CR')}<br/>Min: ₡${min.toLocaleString('es-CR')} · Max: ₡${max.toLocaleString('es-CR')}`;
 			}
 		},
@@ -43,7 +43,6 @@
 		},
 		series: data.map((d) => {
 			const budget = budgets[d.categoria];
-			const max = budget?.max ?? d.sum;
 			const color = CATEGORY_COLORS[d.categoria as keyof typeof CATEGORY_COLORS] ?? '#888';
 			return {
 				name: d.categoria,
@@ -53,9 +52,18 @@
 				itemStyle: { color },
 				markLine: budget
 					? {
+							silent: true,
 							data: [
-								{ xAxis: budget.min, name: 'min', lineStyle: { type: 'dashed', color: '#0f9d58' } },
-								{ xAxis: budget.max, name: 'max', lineStyle: { type: 'dashed', color: '#db4437' } }
+								{
+									xAxis: budget.min * BUDGET_SCALE,
+									name: 'min',
+									lineStyle: { type: 'dashed', color: '#16a34a' }
+								},
+								{
+									xAxis: budget.max * BUDGET_SCALE,
+									name: 'max',
+									lineStyle: { type: 'dashed', color: '#dc2626' }
+								}
 							]
 						}
 					: undefined

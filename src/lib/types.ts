@@ -1,4 +1,4 @@
-import type { BudgetMode } from './config';
+import type { Budget } from './config';
 
 export interface RawRow {
 	categoria?: string;
@@ -26,12 +26,6 @@ export interface NormalizedRow {
 	nota: string;
 	monto: number;
 	original: RawRow;
-}
-
-export interface Budget {
-	min: number;
-	max: number;
-	mode: BudgetMode;
 }
 
 export interface CategoryAggregate {
@@ -87,6 +81,8 @@ export interface BudgetStatus {
 	label: string;
 	color: string;
 	inRange: boolean;
-	underExhaust: boolean;
+	/** True when spending is below the budget minimum. */
+	belowMin: boolean;
+	/** True when spending exceeds the budget maximum. */
 	overMax: boolean;
 }

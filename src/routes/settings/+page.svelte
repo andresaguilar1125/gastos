@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { dev } from '$app/environment';
-	import { dataStore, budgetStore, settingsStore, DEFAULT_BUDGETS, DATA_URL } from '$lib/stores/index.svelte';
-	import type { BudgetMode } from '$lib/stores/index.svelte';
+	import {
+		dataStore,
+		budgetStore,
+		settingsStore,
+		DEFAULT_BUDGETS,
+		DATA_URL,
+		BUDGET_SCALE
+	} from '$lib/stores/index.svelte';
 	import { formatCurrency, clamp } from '$lib/budget/status';
 	import { CATEGORY_COLORS } from '$lib/config';
 
@@ -20,33 +26,24 @@
 		Dec: 'Diciembre'
 	};
 
-	const modes: { value: BudgetMode; label: string }[] = [
-		{ value: 'exhaust', label: 'Agotar' },
-		{ value: 'cap', label: 'Tope' },
-		{ value: 'range', label: 'Rango' },
-		{ value: 'target', label: 'Meta' }
-	];
-
 	const categories = $derived(
 		Object.keys(DEFAULT_BUDGETS).filter((c) => c !== 'Ahorro').concat('Ahorro')
 	);
 
 	let urlInput = $state(dataStore.dataUrl);
 
+	function budgetFor(c: string) {
+		return budgetStore.budgets[c] ?? DEFAULT_BUDGETS[c as keyof typeof DEFAULT_BUDGETS];
+	}
+
 	function updateMin(c: string, value: string) {
 		const num = Math.max(0, Math.ceil(Number(value) || 0));
-		const max = budgetStore.budgets[c]?.max ?? DEFAULT_BUDGETS[c as keyof typeof DEFAULT_BUDGETS].max;
-		budgetStore.update(c, { min: Math.min(num, max) });
+		budgetStore.update(c, { min: Math.min(num, budgetFor(c).max) });
 	}
 
 	function updateMax(c: string, value: string) {
 		const num = Math.max(0, Math.ceil(Number(value) || 0));
-		const min = budgetStore.budgets[c]?.min ?? DEFAULT_BUDGETS[c as keyof typeof DEFAULT_BUDGETS].min;
-		budgetStore.update(c, { max: Math.max(num, min) });
-	}
-
-	function updateMode(c: string, value: BudgetMode) {
-		budgetStore.update(c, { mode: value });
+		budgetStore.update(c, { max: Math.max(num, budgetFor(c).min) });
 	}
 
 	function resetAll() {
@@ -164,11 +161,19 @@
 			</button>
 		</div>
 
+		<div class="mb-4 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+			Ingresa los montos <strong>en miles de colones</strong>. Un rango de
+			<strong>50 → 70</strong> equivale a
+			{formatCurrency(50 * BUDGET_SCALE)} – {formatCurrency(70 * BUDGET_SCALE)}.
+		</div>
+
 		<div class="space-y-4">
 			{#each categories as c}
 				{@const budget = budgetStore.budgets[c] ?? DEFAULT_BUDGETS[c as keyof typeof DEFAULT_BUDGETS]}
 				{@const spent = spendFor(c)}
 				{@const color = CATEGORY_COLORS[c as keyof typeof CATEGORY_COLORS] ?? '#888'}
+				{@const minReal = budget.min * BUDGET_SCALE}
+				{@const maxReal = budget.max * BUDGET_SCALE}
 				<div class="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
 					<div class="flex flex-wrap items-center gap-3">
 						<span
@@ -177,35 +182,32 @@
 						></span>
 						<h3 class="min-w-[8rem] font-semibold">{c}</h3>
 
-						<select
-							value={budget.mode}
-							onchange={(e) => updateMode(c, e.currentTarget.value as BudgetMode)}
-							class="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800"
-						>
-							{#each modes as m}
-								<option value={m.value}>{m.label}</option>
-							{/each}
-						</select>
-
 						<div class="flex items-center gap-2">
 							<input
 								type="number"
 								min="0"
 								step="1"
+								aria-label="{c} mínimo (miles de colones)"
 								value={budget.min}
 								oninput={(e) => updateMin(c, e.currentTarget.value)}
-								class="w-28 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800"
+								class="w-24 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800"
 							/>
 							<span class="text-gray-400">→</span>
 							<input
 								type="number"
 								min="0"
 								step="1"
+								aria-label="{c} máximo (miles de colones)"
 								value={budget.max}
 								oninput={(e) => updateMax(c, e.currentTarget.value)}
-								class="w-28 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800"
+								class="w-24 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800"
 							/>
+							<span class="text-xs text-gray-400">mil ₡</span>
 						</div>
+
+						<span class="text-xs text-gray-500 dark:text-gray-400">
+							= {formatCurrency(minReal)} – {formatCurrency(maxReal)}
+						</span>
 
 						<button
 							type="button"
@@ -218,12 +220,12 @@
 
 					<div class="mt-3">
 						<p class="mb-1 text-xs text-gray-500 dark:text-gray-400">
-							Actual: {formatCurrency(spent)} · Min: {formatCurrency(budget.min)} · Max: {formatCurrency(budget.max)}
+							Actual: {formatCurrency(spent)} · Rango: {formatCurrency(minReal)} – {formatCurrency(maxReal)}
 						</p>
 						<div class="h-3 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
 							<div
 								class="h-full rounded-full transition-all"
-								style="width: {clamp(budget.max ? (spent / budget.max) * 100 : 0, 0, 100)}%; background-color: {color}"
+								style="width: {clamp(maxReal ? (spent / maxReal) * 100 : 0, 0, 100)}%; background-color: {color}"
 							></div>
 						</div>
 					</div>

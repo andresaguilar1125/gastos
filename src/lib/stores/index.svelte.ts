@@ -3,7 +3,7 @@ import {
 	AHORRO_DUPLICATE_FACTOR,
 	DATA_URL,
 	CATEGORY_COLORS,
-	type BudgetMode,
+	BUDGET_SCALE,
 	type Budgets
 } from '$lib/config';
 import { fetchCsv } from '$lib/data/fetcher';
@@ -184,14 +184,23 @@ function createBudgetStore() {
 		const raw = readStorage(BUDGETS_KEY);
 		if (!raw) return;
 		try {
-			budgets = { ...DEFAULT_BUDGETS, ...(JSON.parse(raw) as Budgets) };
+			const parsed = JSON.parse(raw) as Record<string, { min?: number; max?: number }>;
+			// Merge into defaults and drop the removed `mode` field.
+			const merged: Budgets = { ...DEFAULT_BUDGETS };
+			for (const [key, value] of Object.entries(parsed)) {
+				if (!value || typeof value.min !== 'number' || typeof value.max !== 'number') continue;
+				merged[key] = { min: value.min, max: value.max };
+			}
+			budgets = merged;
 		} catch {
 			budgets = { ...DEFAULT_BUDGETS };
 		}
 	}
 
-	function update(category: string, patch: Partial<{ min: number; max: number; mode: BudgetMode }>) {
-		const current = budgets[category] ?? DEFAULT_BUDGETS[category as keyof typeof DEFAULT_BUDGETS] ?? { min: 0, max: 0, mode: 'range' as const };
+	function update(category: string, patch: Partial<{ min: number; max: number }>) {
+		const current =
+			budgets[category] ??
+			DEFAULT_BUDGETS[category as keyof typeof DEFAULT_BUDGETS] ?? { min: 0, max: 0 };
 		budgets = { ...budgets, [category]: { ...current, ...patch } };
 		writeStorage(BUDGETS_KEY, JSON.stringify(budgets));
 	}
@@ -250,5 +259,5 @@ export function hydrateStores(): void {
 	settingsStore.hydrate();
 }
 
-export { DATA_URL, CATEGORY_COLORS, AHORRO_DUPLICATE_FACTOR, DEFAULT_BUDGETS };
-export type { BudgetMode, Budgets };
+export { DATA_URL, CATEGORY_COLORS, AHORRO_DUPLICATE_FACTOR, BUDGET_SCALE, DEFAULT_BUDGETS };
+export type { Budgets };

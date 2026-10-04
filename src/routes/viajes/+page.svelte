@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { dataStore, budgetStore, DEFAULT_BUDGETS } from '$lib/stores/index.svelte';
 	import { formatCurrency } from '$lib/budget/status';
+	import { BUDGET_SCALE } from '$lib/config';
 	import PersonaBarChart from '$lib/components/charts/PersonaBarChart.svelte';
 
 	const budget = $derived(budgetStore.budgets['Viajes'] ?? DEFAULT_BUDGETS['Viajes']);
+	const budgetMaxReal = $derived(budget.max * BUDGET_SCALE);
 	const totalViajes = $derived(dataStore.personaSums.reduce((a, b) => a + b.sum, 0));
 </script>
 
@@ -24,15 +26,15 @@
 		</div>
 		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
 			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Máx. presupuesto</p>
-			<p class="mt-1 text-xl font-bold">{formatCurrency(budget.max)}</p>
+			<p class="mt-1 text-xl font-bold">{formatCurrency(budgetMaxReal)}</p>
 		</div>
 		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
 			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Restante</p>
-			<p class="mt-1 text-xl font-bold">{formatCurrency(Math.max(0, budget.max - totalViajes))}</p>
+			<p class="mt-1 text-xl font-bold">{formatCurrency(Math.max(0, budgetMaxReal - totalViajes))}</p>
 		</div>
 		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
 			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">% usado</p>
-			<p class="mt-1 text-xl font-bold">{budget.max ? Math.round((totalViajes / budget.max) * 100) : 0}%</p>
+			<p class="mt-1 text-xl font-bold">{budgetMaxReal ? Math.round((totalViajes / budgetMaxReal) * 100) : 0}%</p>
 		</div>
 	</div>
 

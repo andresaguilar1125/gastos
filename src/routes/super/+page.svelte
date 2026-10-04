@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { dataStore, budgetStore, DEFAULT_BUDGETS } from '$lib/stores/index.svelte';
 	import { formatCurrency } from '$lib/budget/status';
+	import { BUDGET_SCALE } from '$lib/config';
 	import GrupoBarChart from '$lib/components/charts/GrupoBarChart.svelte';
 
 	const budget = $derived(budgetStore.budgets['Super'] ?? DEFAULT_BUDGETS['Super']);
+	const budgetMaxReal = $derived(budget.max * BUDGET_SCALE);
 	const totalSuper = $derived(dataStore.grupoSums.reduce((a, b) => a + b.sum, 0));
 </script>
 
@@ -24,15 +26,15 @@
 		</div>
 		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
 			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Máx. presupuesto</p>
-			<p class="mt-1 text-xl font-bold">{formatCurrency(budget.max)}</p>
+			<p class="mt-1 text-xl font-bold">{formatCurrency(budgetMaxReal)}</p>
 		</div>
 		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
 			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Restante</p>
-			<p class="mt-1 text-xl font-bold">{formatCurrency(Math.max(0, budget.max - totalSuper))}</p>
+			<p class="mt-1 text-xl font-bold">{formatCurrency(Math.max(0, budgetMaxReal - totalSuper))}</p>
 		</div>
 		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
 			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">% usado</p>
-			<p class="mt-1 text-xl font-bold">{budget.max ? Math.round((totalSuper / budget.max) * 100) : 0}%</p>
+			<p class="mt-1 text-xl font-bold">{budgetMaxReal ? Math.round((totalSuper / budgetMaxReal) * 100) : 0}%</p>
 		</div>
 	</div>
 

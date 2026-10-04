@@ -31,7 +31,7 @@
 					}
 				})),
 				markLine: maxBudget
-					? { data: [{ xAxis: maxBudget, name: 'tope', lineStyle: { type: 'dashed', color: '#db4437' } }] }
+					? { data: [{ xAxis: maxBudget, name: 'tope', lineStyle: { type: 'dashed', color: '#dc2626' } }] }
 					: undefined
 			}
 		]

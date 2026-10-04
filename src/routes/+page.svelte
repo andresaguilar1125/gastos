@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { dataStore, budgetStore } from '$lib/stores/index.svelte';
 	import { formatCurrency, evaluateSpend } from '$lib/budget/status';
-	import { CATEGORY_COLORS, DEFAULT_BUDGETS } from '$lib/config';
+	import { CATEGORY_COLORS, DEFAULT_BUDGETS, BUDGET_SCALE } from '$lib/config';
 	import { setPageTitle } from '$lib/ui/theme';
 	import Card from '$lib/components/Card.svelte';
 	import DeltaBadge from '$lib/components/DeltaBadge.svelte';
@@ -16,18 +16,20 @@
 		Jul: 'Julio', Aug: 'Agosto', Sep: 'Septiembre', Oct: 'Octubre', Nov: 'Noviembre', Dec: 'Diciembre'
 	};
 
+	/** Budget totals in real colones (stored values are in thousands). */
 	let totalMin = $derived(
-		Object.values(budgetStore.budgets).reduce((sum, b) => sum + b.min, 0)
+		Object.values(budgetStore.budgets).reduce((sum, b) => sum + b.min, 0) * BUDGET_SCALE
 	);
 	let totalMax = $derived(
-		Object.values(budgetStore.budgets).reduce((sum, b) => sum + b.max, 0)
+		Object.values(budgetStore.budgets).reduce((sum, b) => sum + b.max, 0) * BUDGET_SCALE
 	);
+	/** Budgets are monthly, so they are judged against the current month. */
 	let inRangeCount = $derived(
-		dataStore.categorySums.filter((a) => {
+		dataStore.categoryMomSums.filter((a) => {
 			const budget =
 				budgetStore.budgets[a.categoria] ??
 				DEFAULT_BUDGETS[a.categoria as keyof typeof DEFAULT_BUDGETS];
-			return budget ? evaluateSpend(a.sum, budget).inRange : false;
+			return budget ? evaluateSpend(a.current, budget).inRange : false;
 		}).length
 	);
 
@@ -128,7 +130,7 @@
 		</Card>
 	</div>
 
-	<!-- KPI strip -->
+	<!-- KPI strip (budgets are monthly, judged against the current month) -->
 	<div class="grid grid-cols-2 gap-3 md:grid-cols-4">
 		<Card class="!px-4">
 			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Mín. presupuesto</p>
@@ -139,14 +141,14 @@
 			<p class="mt-1 text-xl font-bold">{formatCurrency(totalMax)}</p>
 		</Card>
 		<Card class="!px-4">
-			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">% usado</p>
+			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">% usado ({currentLabel})</p>
 			<p class="mt-1 text-xl font-bold">
-				{totalMax ? Math.round((dataStore.total / totalMax) * 100) : 0}%
+				{totalMax ? Math.round((dataStore.latestMonthSum / totalMax) * 100) : 0}%
 			</p>
 		</Card>
 		<Card class="!px-4">
 			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Categorías en rango</p>
-			<p class="mt-1 text-xl font-bold">{inRangeCount} / {dataStore.categorySums.length}</p>
+			<p class="mt-1 text-xl font-bold">{inRangeCount} / {dataStore.categoryMomSums.length}</p>
 		</Card>
 	</div>
 
@@ -180,20 +182,20 @@
 		</Card>
 	</div>
 
-	<!-- Budget vs spend -->
-	<Card title="Gasto vs presupuesto" subtitle="Todo el histórico">
+	<!-- Budget vs spend for the current month -->
+	<Card title="Gasto vs presupuesto" subtitle="Mes actual ({currentLabel}) · línea verde = mín, roja = máx">
 		<div class="h-96 overscroll-contain">
-			<CategoryBudgetBar data={dataStore.categorySums} budgets={budgetStore.budgets} />
+			<CategoryBudgetBar data={dataStore.categoryMomSums.map((c) => ({ categoria: c.categoria, sum: c.current, pct: 0 }))} budgets={budgetStore.budgets} />
 		</div>
 	</Card>
 
-	<!-- Category mini-cards -->
+	<!-- Category mini-cards for the current month -->
 	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-		{#each dataStore.categorySums as agg (agg.categoria)}
+		{#each dataStore.categoryMomSums as agg (agg.categoria)}
 			{@const budget =
 				budgetStore.budgets[agg.categoria] ??
 				DEFAULT_BUDGETS[agg.categoria as keyof typeof DEFAULT_BUDGETS]}
-			{@const status = budget ? evaluateSpend(agg.sum, budget) : null}
+			{@const status = budget ? evaluateSpend(agg.current, budget) : null}
 			<Card class="!px-4 !py-3">
 				<div class="flex items-center gap-2">
 					<span
@@ -204,8 +206,7 @@
 					></span>
 					<h3 class="font-semibold">{agg.categoria}</h3>
 				</div>
-				<p class="mt-1 text-2xl font-bold">{formatCurrency(agg.sum)}</p>
-				<p class="text-xs text-gray-500 dark:text-gray-400">{agg.pct}% del total</p>
+				<p class="mt-1 text-2xl font-bold">{formatCurrency(agg.current)}</p>
 				{#if status}
 					<span
 						class="mt-2 inline-block rounded-full px-2 py-1 text-xs font-medium"
@@ -217,7 +218,6 @@
 			</Card>
 		{/each}
 	</div>
-
 	<!-- Moved from the header: data freshness, centered at the bottom -->
 	{#if dataStore.fetchedAt}
 		<p class="pt-2 text-center text-xs text-gray-400 dark:text-gray-500">

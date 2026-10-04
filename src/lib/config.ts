@@ -3,14 +3,26 @@ export const DATA_URL =
 
 export const AHORRO_DUPLICATE_FACTOR = 3;
 
+/**
+ * Budgets are entered in thousands of colones. Selecting 50 -> 70 means
+ * a range of ₡50,000 -> ₡70,000 CRC.
+ */
+export const BUDGET_SCALE = 1000;
+
+/**
+ * Default budget ranges per category, expressed in THOUSANDS of colones.
+ * Multiply by BUDGET_SCALE to get the real CRC amount.
+ * These are rough starting points based on the monthly average of the
+ * historic data; adjust them in Configuración to match your real targets.
+ */
 export const DEFAULT_BUDGETS = {
-	Recibos: { min: 500, max: 600, mode: 'exhaust' as const },
-	Restaurantes: { min: 0, max: 60, mode: 'cap' as const },
-	Super: { min: 0, max: 200, mode: 'cap' as const },
-	Familiar: { min: 50, max: 150, mode: 'range' as const },
-	Medico: { min: 0, max: 50, mode: 'range' as const },
-	Viajes: { min: 0, max: 150, mode: 'range' as const },
-	Ahorro: { min: 400, max: 600, mode: 'target' as const }
+	Recibos: { min: 70, max: 110 },
+	Restaurantes: { min: 35, max: 65 },
+	Super: { min: 150, max: 230 },
+	Familiar: { min: 50, max: 95 },
+	Medico: { min: 10, max: 35 },
+	Viajes: { min: 70, max: 120 },
+	Ahorro: { min: 400, max: 600 }
 };
 
 export const CATEGORY_COLORS = {
@@ -23,12 +35,11 @@ export const CATEGORY_COLORS = {
 	Ahorro: '#db4437'
 };
 
-export type BudgetMode = 'exhaust' | 'cap' | 'range' | 'target';
-
 export type Budget = {
+	/** Lower bound in thousands of colones. */
 	min: number;
+	/** Upper bound in thousands of colones. */
 	max: number;
-	mode: BudgetMode;
 };
 
 export type Budgets = Record<string, Budget>;

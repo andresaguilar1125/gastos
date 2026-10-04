@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { dataStore, budgetStore, DEFAULT_BUDGETS } from '$lib/stores/index.svelte';
 	import { formatCurrency, evaluateSpend } from '$lib/budget/status';
+	import { BUDGET_SCALE } from '$lib/config';
 	import NotaBarChart from '$lib/components/charts/NotaBarChart.svelte';
 
 	const budget = $derived(budgetStore.budgets['Recibos'] ?? DEFAULT_BUDGETS['Recibos']);
+	const budgetMinReal = $derived(budget.min * BUDGET_SCALE);
+	const budgetMaxReal = $derived(budget.max * BUDGET_SCALE);
 	const totalRecibos = $derived(dataStore.notaSums.reduce((a, b) => a + b.sum, 0));
 	const untouched = $derived(
 		dataStore.notaSums.filter((n) => n.sum === 0).map((n) => n.nota)
@@ -28,11 +31,11 @@
 		</div>
 		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
 			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Rango presupuesto</p>
-			<p class="mt-1 text-xl font-bold">{formatCurrency(budget.min)} - {formatCurrency(budget.max)}</p>
+			<p class="mt-1 text-xl font-bold">{formatCurrency(budgetMinReal)} - {formatCurrency(budgetMaxReal)}</p>
 		</div>
 		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
 			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Restante</p>
-			<p class="mt-1 text-xl font-bold">{formatCurrency(Math.max(0, budget.max - totalRecibos))}</p>
+			<p class="mt-1 text-xl font-bold">{formatCurrency(Math.max(0, budgetMaxReal - totalRecibos))}</p>
 		</div>
 		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
 			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Estado</p>
@@ -50,7 +53,7 @@
 	<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
 		<h2 class="mb-3 text-lg font-semibold">Desglose por nota</h2>
 		<div class="h-[28rem]">
-			<NotaBarChart data={dataStore.notaSums} maxBudget={budget.max} />
+			<NotaBarChart data={dataStore.notaSums} maxBudget={budgetMaxReal} />
 		</div>
 	</div>
 </section>

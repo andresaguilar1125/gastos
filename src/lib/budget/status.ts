@@ -1,52 +1,35 @@
+import { BUDGET_SCALE } from '$lib/config';
 import type { Budget, BudgetStatus } from '$lib/types';
 
 export function formatCurrency(amount: number): string {
 	return `₡${Math.ceil(amount).toLocaleString('es-CR')}`;
 }
 
+/** Convert a range entered in thousands of colones into real CRC values. */
+export function toRealRange(budget: Budget): { min: number; max: number } {
+	return { min: budget.min * BUDGET_SCALE, max: budget.max * BUDGET_SCALE };
+}
+
+/** Convert a real CRC amount back into the thousands used by the inputs. */
+export function toDisplayValue(realAmount: number): number {
+	return Math.round(realAmount / BUDGET_SCALE);
+}
+
+/**
+ * Spending is always judged against a range: below `min` is low, above `max`
+ * is high, and anything in between is on target. `budget.min`/`max` are in
+ * thousands of colones, so they are scaled before comparing.
+ */
 export function evaluateSpend(spent: number, budget: Budget): BudgetStatus {
-	if (budget.mode === 'exhaust') {
-		const inRange = spent >= budget.min && spent <= budget.max;
-		const underExhaust = spent < budget.max;
-		return {
-			label: underExhaust ? 'Sin gastar' : 'Completado',
-			color: underExhaust ? '#f4b400' : '#0f9d58',
-			inRange,
-			underExhaust,
-			overMax: false
-		};
-	}
+	const { min, max } = toRealRange(budget);
+	const inRange = spent >= min && spent <= max;
+	const overMax = spent > max;
 
-	if (budget.mode === 'cap') {
-		const overMax = spent > budget.max;
-		return {
-			label: overMax ? 'Excedido' : 'Dentro del tope',
-			color: overMax ? '#db4437' : '#0f9d58',
-			inRange: !overMax,
-			underExhaust: false,
-			overMax
-		};
-	}
-
-	if (budget.mode === 'target') {
-		const inRange = spent >= budget.min && spent <= budget.max;
-		return {
-			label: inRange ? 'En meta' : spent < budget.min ? 'Por debajo' : 'Sobre meta',
-			color: inRange ? '#0f9d58' : spent < budget.min ? '#f4b400' : '#db4437',
-			inRange,
-			underExhaust: spent < budget.min,
-			overMax: spent > budget.max
-		};
-	}
-
-	// range
-	const inRange = spent >= budget.min && spent <= budget.max;
-	const overMax = spent > budget.max;
 	return {
 		label: inRange ? 'En rango' : overMax ? 'Sobre rango' : 'Por debajo',
-		color: inRange ? '#0f9d58' : overMax ? '#db4437' : '#f4b400',
+		color: inRange ? '#16a34a' : overMax ? '#dc2626' : '#f59e0b',
 		inRange,
-		underExhaust: spent < budget.min,
+		belowMin: spent < min,
 		overMax
 	};
 }
