@@ -4,6 +4,7 @@
 	import { GridComponent, TooltipComponent } from 'echarts/components';
 	import { CanvasRenderer } from 'echarts/renderers';
 	import { Chart } from 'svelte-echarts';
+	import type { EChartsOption } from 'echarts';
 	import type { Budgets } from '$lib/config';
 	import type { CategoryAggregate } from '$lib/types';
 	import { CATEGORY_COLORS } from '$lib/config';
@@ -17,12 +18,15 @@
 
 	let { data, budgets }: Props = $props();
 
-	let option = $derived({
+	let options = $derived<EChartsOption>({
 		tooltip: {
 			trigger: 'axis',
 			axisPointer: { type: 'shadow' },
-			formatter: (params: unknown[]) => {
-				const p = params as Array<{ name: string; value: number }>;
+			formatter: (params: unknown) => {
+				const p = (Array.isArray(params) ? params : [params]) as Array<{
+					name: string;
+					value: number;
+				}>;
 				const name = p[0]?.name ?? '';
 				const budget = budgets[name];
 				const min = budget?.min ?? 0;
@@ -60,4 +64,4 @@
 	});
 </script>
 
-<Chart {init} {option} style="width: 100%; height: 100%;" />
+<Chart {init} {options} style="width: 100%; height: 100%;" />

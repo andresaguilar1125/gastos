@@ -4,6 +4,7 @@
 	import { TooltipComponent, LegendComponent } from 'echarts/components';
 	import { CanvasRenderer } from 'echarts/renderers';
 	import { Chart } from 'svelte-echarts';
+	import type { EChartsOption } from 'echarts';
 	import { CATEGORY_COLORS } from '$lib/config';
 	import type { CategoryAggregate } from '$lib/types';
 
@@ -15,7 +16,7 @@
 
 	let { data }: Props = $props();
 
-	let option = $derived({
+	let options = $derived<EChartsOption>({
 		tooltip: { trigger: 'item', formatter: '{b}: ₡{c} ({d}%)' },
 		legend: { bottom: 0 },
 		color: data.map((d) => CATEGORY_COLORS[d.categoria as keyof typeof CATEGORY_COLORS] ?? '#888'),
@@ -33,4 +34,4 @@
 	});
 </script>
 
-<Chart {init} {option} style="width: 100%; height: 100%;" />
+<Chart {init} {options} style="width: 100%; height: 100%;" />

@@ -23,13 +23,33 @@ const BUDGETS_KEY = 'finanzas-budgets';
 const URL_KEY = 'finanzas-data-url';
 const AHORRO_KEY = 'finanzas-ahorro-factor';
 
+const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
+
+function readStorage(key: string): string | null {
+	if (!isBrowser) return null;
+	try {
+		return localStorage.getItem(key);
+	} catch {
+		return null;
+	}
+}
+
+function writeStorage(key: string, value: string): void {
+	if (!isBrowser) return;
+	try {
+		localStorage.setItem(key, value);
+	} catch {
+		/* ignore quota / privacy-mode errors */
+	}
+}
+
 function createDataStore() {
 	let csvText = $state<string>('');
 	let loading = $state<boolean>(false);
 	let error = $state<string | null>(null);
 	let cached = $state<boolean>(false);
 	let fetchedAt = $state<Date | null>(null);
-	let dataUrl = $state<string>(localStorage.getItem(URL_KEY) ?? DATA_URL);
+	let dataUrl = $state<string>(DATA_URL);
 
 	let rawRows = $state<NormalizedRow[]>([]);
 
@@ -39,6 +59,11 @@ function createDataStore() {
 	let grupoSums = $derived(sumByGrupo(rows));
 	let personaSums = $derived(sumByPersona(rows));
 	let total = $derived(totalSpend(rows));
+
+	function hydrateUrl() {
+		const stored = readStorage(URL_KEY);
+		if (stored) dataUrl = stored;
+	}
 
 	async function load(url = dataUrl) {
 		loading = true;
@@ -60,7 +85,7 @@ function createDataStore() {
 
 	function setUrl(url: string) {
 		dataUrl = url;
-		localStorage.setItem(URL_KEY, url);
+		writeStorage(URL_KEY, url);
 		load(url);
 	}
 
@@ -78,6 +103,7 @@ function createDataStore() {
 		get grupoSums() { return grupoSums; },
 		get personaSums() { return personaSums; },
 		get total() { return total; },
+		hydrateUrl,
 		load,
 		setUrl
 	};
@@ -86,32 +112,40 @@ function createDataStore() {
 export const dataStore = createDataStore();
 
 function createBudgetStore() {
-	const initialRaw = localStorage.getItem(BUDGETS_KEY);
-	const parsed = initialRaw ? (JSON.parse(initialRaw) as Budgets) : {};
-	const merged: Budgets = { ...DEFAULT_BUDGETS, ...parsed };
+	let budgets = $state<Budgets>({ ...DEFAULT_BUDGETS });
 
-	let budgets = $state<Budgets>(merged);
-
-	$effect(() => {
-		localStorage.setItem(BUDGETS_KEY, JSON.stringify(budgets));
-	});
+	function hydrate() {
+		const raw = readStorage(BUDGETS_KEY);
+		if (!raw) return;
+		try {
+			budgets = { ...DEFAULT_BUDGETS, ...(JSON.parse(raw) as Budgets) };
+		} catch {
+			budgets = { ...DEFAULT_BUDGETS };
+		}
+	}
 
 	function update(category: string, patch: Partial<{ min: number; max: number; mode: BudgetMode }>) {
 		const current = budgets[category] ?? DEFAULT_BUDGETS[category as keyof typeof DEFAULT_BUDGETS] ?? { min: 0, max: 0, mode: 'range' as const };
-		budgets[category] = { ...current, ...patch };
+		budgets = { ...budgets, [category]: { ...current, ...patch } };
+		writeStorage(BUDGETS_KEY, JSON.stringify(budgets));
 	}
 
 	function reset(category: string) {
 		const def = DEFAULT_BUDGETS[category as keyof typeof DEFAULT_BUDGETS];
-		if (def) budgets[category] = { ...def };
+		if (def) {
+			budgets = { ...budgets, [category]: { ...def } };
+			writeStorage(BUDGETS_KEY, JSON.stringify(budgets));
+		}
 	}
 
 	function resetAll() {
 		budgets = { ...DEFAULT_BUDGETS };
+		writeStorage(BUDGETS_KEY, JSON.stringify(budgets));
 	}
 
 	return {
 		get budgets() { return budgets; },
+		hydrate,
 		update,
 		reset,
 		resetAll
@@ -121,21 +155,33 @@ function createBudgetStore() {
 export const budgetStore = createBudgetStore();
 
 function createSettingsStore() {
-	let ahorroFactor = $state<number>(
-		Math.max(1, Number(localStorage.getItem(AHORRO_KEY) ?? AHORRO_DUPLICATE_FACTOR))
-	);
+	let ahorroFactor = $state<number>(AHORRO_DUPLICATE_FACTOR);
 
-	$effect(() => {
-		localStorage.setItem(AHORRO_KEY, String(ahorroFactor));
-	});
+	function hydrate() {
+		const stored = readStorage(AHORRO_KEY);
+		if (stored == null) return;
+		const parsed = Number(stored);
+		if (Number.isFinite(parsed)) ahorroFactor = Math.max(1, Math.round(parsed));
+	}
 
 	return {
 		get ahorroFactor() { return ahorroFactor; },
-		set ahorroFactor(v: number) { ahorroFactor = Math.max(1, Math.round(v)); }
+		set ahorroFactor(v: number) {
+			ahorroFactor = Math.max(1, Math.round(v) || 1);
+			writeStorage(AHORRO_KEY, String(ahorroFactor));
+		},
+		hydrate
 	};
 }
 
 export const settingsStore = createSettingsStore();
+
+/** Call once on the client to restore persisted state before rendering. */
+export function hydrateStores(): void {
+	dataStore.hydrateUrl();
+	budgetStore.hydrate();
+	settingsStore.hydrate();
+}
 
 export { DATA_URL, CATEGORY_COLORS, AHORRO_DUPLICATE_FACTOR, DEFAULT_BUDGETS };
 export type { BudgetMode, Budgets };

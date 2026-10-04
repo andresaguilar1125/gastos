@@ -1,12 +1,15 @@
 import type { BudgetMode } from './config';
 
 export interface RawRow {
+	categoria?: string;
 	fecha?: string;
 	mes?: string;
-	categoria?: string;
+	persona?: string;
+	comercio?: string;
+	descripcion?: string;
 	subcategoria?: string;
 	grupo?: string;
-	persona?: string;
+	super?: string;
 	nota?: string;
 	sobre?: string;
 	monto?: string | number;
@@ -14,9 +17,12 @@ export interface RawRow {
 
 export interface NormalizedRow {
 	fecha: string;
+	mes: string;
 	categoria: string;
 	grupo: string;
 	persona: string;
+	comercio: string;
+	descripcion: string;
 	nota: string;
 	monto: number;
 	original: RawRow;

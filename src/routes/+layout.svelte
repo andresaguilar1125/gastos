@@ -2,7 +2,7 @@
 	import '../app.css';
 	import { onMount } from 'svelte';
 	import { theme } from '$lib/ui/theme';
-	import { dataStore } from '$lib/stores/index.svelte';
+	import { dataStore, hydrateStores } from '$lib/stores/index.svelte';
 	import TopNav from '$lib/components/TopNav.svelte';
 	import BottomNav from '$lib/components/BottomNav.svelte';
 	import type { LayoutProps } from './$types';
@@ -11,6 +11,7 @@
 	let innerWidth = $state(0);
 
 	onMount(() => {
+		hydrateStores();
 		theme.subscribe((v) => {
 			document.documentElement.classList.toggle('dark', v === 'dark');
 		})();
