@@ -1,0 +1,22 @@
+@import 'tailwindcss';
+
+@theme {
+	--color-primary: #db4437;
+	--color-primary-dark: #b71c1c;
+	--color-secondary: #f4b400;
+	--color-success: #0f9d58;
+	--color-warning: #f9ab00;
+	--color-danger: #db4437;
+}
+
+/* Safe-area insets for notched phones */
+:root {
+	--safe-top: env(safe-area-inset-top, 0px);
+	--safe-bottom: env(safe-area-inset-bottom, 0px);
+	--safe-left: env(safe-area-inset-left, 0px);
+	--safe-right: env(safe-area-inset-right, 0px);
+}
+
+html.dark body {
+	color-scheme: dark;
+}
