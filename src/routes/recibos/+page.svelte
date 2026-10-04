@@ -5,9 +5,10 @@
 	import NotaBarChart from '$lib/components/charts/NotaBarChart.svelte';
 
 	const budget = $derived(budgetStore.budgets['Recibos'] ?? DEFAULT_BUDGETS['Recibos']);
-	const budgetMinReal = $derived(budget.min * BUDGET_SCALE);
-	const budgetMaxReal = $derived(budget.max * BUDGET_SCALE);
-	const totalRecibos = $derived(dataStore.notaSums.reduce((a, b) => a + b.sum, 0));
+	const budgetMaxReal = $derived(budget.cap * BUDGET_SCALE);
+	const totalRecibos = $derived(
+		dataStore.categoryMomSums.find((c) => c.categoria === 'Recibos')?.current ?? 0
+	);
 	const untouched = $derived(
 		dataStore.notaSums.filter((n) => n.sum === 0).map((n) => n.nota)
 	);
@@ -30,8 +31,8 @@
 			<p class="mt-1 text-xl font-bold">{formatCurrency(totalRecibos)}</p>
 		</div>
 		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Rango presupuesto</p>
-			<p class="mt-1 text-xl font-bold">{formatCurrency(budgetMinReal)} - {formatCurrency(budgetMaxReal)}</p>
+			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Tope</p>
+			<p class="mt-1 text-xl font-bold">{formatCurrency(budgetMaxReal)}</p>
 		</div>
 		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
 			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Restante</p>

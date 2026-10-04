@@ -16,14 +16,11 @@
 		Jul: 'Julio', Aug: 'Agosto', Sep: 'Septiembre', Oct: 'Octubre', Nov: 'Noviembre', Dec: 'Diciembre'
 	};
 
-	/** Budget totals in real colones (stored values are in thousands). */
-	let totalMin = $derived(
-		Object.values(budgetStore.budgets).reduce((sum, b) => sum + b.min, 0) * BUDGET_SCALE
+	/** Total of all caps in real colones (stored values are in thousands). */
+	let totalCaps = $derived(
+		Object.values(budgetStore.budgets).reduce((sum, b) => sum + b.cap, 0) * BUDGET_SCALE
 	);
-	let totalMax = $derived(
-		Object.values(budgetStore.budgets).reduce((sum, b) => sum + b.max, 0) * BUDGET_SCALE
-	);
-	/** Budgets are monthly, so they are judged against the current month. */
+	/** Caps are monthly, so they are judged against the current month. */
 	let inRangeCount = $derived(
 		dataStore.categoryMomSums.filter((a) => {
 			const budget =
@@ -130,24 +127,24 @@
 		</Card>
 	</div>
 
-	<!-- KPI strip (budgets are monthly, judged against the current month) -->
+	<!-- KPI strip (caps are monthly, judged against the current month) -->
 	<div class="grid grid-cols-2 gap-3 md:grid-cols-4">
 		<Card class="!px-4">
-			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Mín. presupuesto</p>
-			<p class="mt-1 text-xl font-bold">{formatCurrency(totalMin)}</p>
+			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Tope total</p>
+			<p class="mt-1 text-xl font-bold">{formatCurrency(totalCaps)}</p>
 		</Card>
 		<Card class="!px-4">
-			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Máx. presupuesto</p>
-			<p class="mt-1 text-xl font-bold">{formatCurrency(totalMax)}</p>
+			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Gasto ({currentLabel})</p>
+			<p class="mt-1 text-xl font-bold">{formatCurrency(dataStore.latestMonthSum)}</p>
 		</Card>
 		<Card class="!px-4">
-			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">% usado ({currentLabel})</p>
+			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">% del tope</p>
 			<p class="mt-1 text-xl font-bold">
-				{totalMax ? Math.round((dataStore.latestMonthSum / totalMax) * 100) : 0}%
+				{totalCaps ? Math.round((dataStore.latestMonthSum / totalCaps) * 100) : 0}%
 			</p>
 		</Card>
 		<Card class="!px-4">
-			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Categorías en rango</p>
+			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Categorías dentro del tope</p>
 			<p class="mt-1 text-xl font-bold">{inRangeCount} / {dataStore.categoryMomSums.length}</p>
 		</Card>
 	</div>
@@ -183,7 +180,7 @@
 	</div>
 
 	<!-- Budget vs spend for the current month -->
-	<Card title="Gasto vs presupuesto" subtitle="Mes actual ({currentLabel}) · línea verde = mín, roja = máx">
+	<Card title="Gasto vs tope" subtitle="Mes actual ({currentLabel}) · línea roja = tope mensual">
 		<div class="h-96 overscroll-contain">
 			<CategoryBudgetBar data={dataStore.categoryMomSums.map((c) => ({ categoria: c.categoria, sum: c.current, pct: 0 }))} budgets={budgetStore.budgets} />
 		</div>

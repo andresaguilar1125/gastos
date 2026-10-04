@@ -1,5 +1,7 @@
 import type { Budget } from './config';
 
+export type { Budget };
+
 export interface RawRow {
 	categoria?: string;
 	fecha?: string;
@@ -75,14 +77,4 @@ export interface CategoryMom {
 	current: number;
 	previous: number;
 	delta: MomDelta;
-}
-
-export interface BudgetStatus {
-	label: string;
-	color: string;
-	inRange: boolean;
-	/** True when spending is below the budget minimum. */
-	belowMin: boolean;
-	/** True when spending exceeds the budget maximum. */
-	overMax: boolean;
 }

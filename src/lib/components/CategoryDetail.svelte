@@ -41,7 +41,6 @@
 	const categoryRows = $derived(
 		dataStore.rows.filter((r) => r.categoria.toLowerCase() === categoria.toLowerCase())
 	);
-	const total = $derived(categoryRows.reduce((sum, r) => sum + r.monto, 0));
 
 	/** Monthly totals filtered to this category. */
 	const monthSums = $derived.by(() => {
@@ -89,6 +88,10 @@
 		currentMonth ? (MONTH_ES[currentMonth] ?? currentMonth) : '—'
 	);
 
+	/** Current-month spend for this category (caps reset on the 1st). */
+	const total = $derived(currentMonthSum);
+	const historicTotal = $derived(categoryRows.reduce((sum, r) => sum + r.monto, 0));
+
 	/** Breakdown by the sheet's Nota value (top 12). */
 	const notaSums = $derived.by<NotaAggregate[]>(() => {
 		const totals: Record<string, number> = {};
@@ -105,10 +108,8 @@
 
 	const status = $derived(budget ? evaluateSpend(total, budget) : null);
 
-	/** Budget bounds in real colones (stored values are in thousands). */
-	const budgetMinReal = $derived((budget?.min ?? 0) * BUDGET_SCALE);
-	const budgetMaxReal = $derived((budget?.max ?? 0) * BUDGET_SCALE);
-	const currentMonthReal = $derived(currentMonthSum);
+	/** Budget cap in real colones (stored value is in thousands). */
+	const budgetCapReal = $derived((budget?.cap ?? 0) * BUDGET_SCALE);
 
 	const topComercio = $derived.by(() => {
 		const totals: Record<string, number> = {};
@@ -149,7 +150,7 @@
 				<div class="text-right">
 					<p class="text-xs font-medium uppercase tracking-wide text-gray-400">Total histórico</p>
 					<p class="text-lg font-semibold text-gray-700 dark:text-gray-200">
-						{formatCurrency(total)}
+						{formatCurrency(historicTotal)}
 					</p>
 				</div>
 			</div>
@@ -161,15 +162,13 @@
 		<Card title="Resumen">
 			<dl class="space-y-3 text-sm">
 					<div class="flex items-center justify-between">
-					<dt class="text-gray-500 dark:text-gray-400">Presupuesto</dt>
-					<dd class="font-semibold">
-						{formatCurrency(budgetMinReal)} – {formatCurrency(budgetMaxReal)}
-					</dd>
+					<dt class="text-gray-500 dark:text-gray-400">Tope</dt>
+					<dd class="font-semibold">máx {formatCurrency(budgetCapReal)}</dd>
 				</div>
 				<div class="flex items-center justify-between">
 					<dt class="text-gray-500 dark:text-gray-400">Restante</dt>
 					<dd class="font-semibold">
-						{formatCurrency(Math.max(0, budgetMaxReal - total))}
+						{formatCurrency(Math.max(0, budgetCapReal - total))}
 					</dd>
 				</div>
 				{#if status}
@@ -210,7 +209,7 @@
 	<Card title="Desglose por nota" subtitle="Valores del catálogo de la hoja (top 12)">
 		{#if notaSums.length}
 			<div class="h-[26rem] overscroll-contain">
-				<NotaBarChart data={notaSums} maxBudget={budgetMaxReal} />
+				<NotaBarChart data={notaSums} maxBudget={budgetCapReal} />
 			</div>
 		{:else}
 			<p class="text-sm text-gray-500">Sin movimientos para esta categoría.</p>

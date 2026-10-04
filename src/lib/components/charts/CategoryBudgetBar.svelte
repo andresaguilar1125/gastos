@@ -29,9 +29,8 @@
 				}>;
 				const name = p[0]?.name ?? '';
 				const budget = budgets[name];
-				const min = (budget?.min ?? 0) * BUDGET_SCALE;
-				const max = (budget?.max ?? 0) * BUDGET_SCALE;
-				return `${name}<br/>Gasto: ₡${p[0]?.value.toLocaleString('es-CR')}<br/>Min: ₡${min.toLocaleString('es-CR')} · Max: ₡${max.toLocaleString('es-CR')}`;
+				const cap = (budget?.cap ?? 0) * BUDGET_SCALE;
+				return `${name}<br/>Gasto: ₡${p[0]?.value.toLocaleString('es-CR')}<br/>Tope: ₡${cap.toLocaleString('es-CR')}`;
 			}
 		},
 		grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
@@ -55,13 +54,8 @@
 							silent: true,
 							data: [
 								{
-									xAxis: budget.min * BUDGET_SCALE,
-									name: 'min',
-									lineStyle: { type: 'dashed', color: '#16a34a' }
-								},
-								{
-									xAxis: budget.max * BUDGET_SCALE,
-									name: 'max',
+									xAxis: budget.cap * BUDGET_SCALE,
+									name: 'tope',
 									lineStyle: { type: 'dashed', color: '#dc2626' }
 								}
 							]

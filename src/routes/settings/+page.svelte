@@ -8,7 +8,7 @@
 		DATA_URL,
 		BUDGET_SCALE
 	} from '$lib/stores/index.svelte';
-	import { formatCurrency, clamp } from '$lib/budget/status';
+	import { formatCurrency } from '$lib/budget/status';
 	import { CATEGORY_COLORS } from '$lib/config';
 
 	const MONTH_ES: Record<string, string> = {
@@ -30,20 +30,28 @@
 		Object.keys(DEFAULT_BUDGETS).filter((c) => c !== 'Ahorro').concat('Ahorro')
 	);
 
+	/** Label of the month currently being evaluated. */
+	const currentLabel = $derived(
+		dataStore.latestMonth ? (MONTH_ES[dataStore.latestMonth] ?? dataStore.latestMonth) : '—'
+	);
+
 	let urlInput = $state(dataStore.dataUrl);
 
-	function budgetFor(c: string) {
-		return budgetStore.budgets[c] ?? DEFAULT_BUDGETS[c as keyof typeof DEFAULT_BUDGETS];
+	/** Draft values shown in the inputs (unsaved until "Guardar cambios"). */
+	function draftCap(c: string): number {
+		return budgetStore.draft[c]?.cap ?? 0;
 	}
 
-	function updateMin(c: string, value: string) {
-		const num = Math.max(0, Math.ceil(Number(value) || 0));
-		budgetStore.update(c, { min: Math.min(num, budgetFor(c).max) });
+	function updateCap(c: string, value: string) {
+		budgetStore.update(c, Number(value));
 	}
 
-	function updateMax(c: string, value: string) {
-		const num = Math.max(0, Math.ceil(Number(value) || 0));
-		budgetStore.update(c, { max: Math.max(num, budgetFor(c).min) });
+	function discard() {
+		budgetStore.discard();
+	}
+
+	function save() {
+		budgetStore.save();
 	}
 
 	function resetAll() {
@@ -56,8 +64,15 @@
 		dataStore.setUrl(urlInput.trim() || DATA_URL);
 	}
 
+	/** Spend for the CURRENT MONTH only — caps reset on the 1st of each month. */
 	function spendFor(c: string): number {
-		return dataStore.categorySums.find((a) => a.categoria === c)?.sum ?? 0;
+		return dataStore.categoryMomSums.find((a) => a.categoria === c)?.current ?? 0;
+	}
+
+	/** Percentage of the cap used, capped visually at 100%. */
+	function usedPct(spent: number, capMil: number): number {
+		const capReal = capMil * BUDGET_SCALE;
+		return capReal > 0 ? Math.min(100, Math.round((spent / capReal) * 100)) : 0;
 	}
 </script>
 
@@ -161,20 +176,28 @@
 			</button>
 		</div>
 
+		<p class="mb-4 text-sm text-gray-500 dark:text-gray-400">
+			Gasto actual de <strong>{currentLabel}</strong> comparado con cada tope mensual.
+		</p>
+
 		<div class="mb-4 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-			Ingresa los montos <strong>en miles de colones</strong>. Un rango de
-			<strong>50 → 70</strong> equivale a
-			{formatCurrency(50 * BUDGET_SCALE)} – {formatCurrency(70 * BUDGET_SCALE)}.
+			Define un <strong>tope máximo mensual</strong> por categoría, <strong>en miles de colones</strong>.
+			Un tope de <strong>70</strong> significa que no quieres gastar más de
+			{formatCurrency(70 * BUDGET_SCALE)} <strong>por mes</strong>.
+			Los topes se reinician el <strong>1.º de cada mes</strong>.
 		</div>
 
 		<div class="space-y-4">
 			{#each categories as c}
-				{@const budget = budgetStore.budgets[c] ?? DEFAULT_BUDGETS[c as keyof typeof DEFAULT_BUDGETS]}
+				{@const draftBudget = budgetStore.draft[c] ?? DEFAULT_BUDGETS[c as keyof typeof DEFAULT_BUDGETS]}
+				{@const committed = budgetStore.budgets[c] ?? DEFAULT_BUDGETS[c as keyof typeof DEFAULT_BUDGETS]}
 				{@const spent = spendFor(c)}
 				{@const color = CATEGORY_COLORS[c as keyof typeof CATEGORY_COLORS] ?? '#888'}
-				{@const minReal = budget.min * BUDGET_SCALE}
-				{@const maxReal = budget.max * BUDGET_SCALE}
-				<div class="rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+				{@const capReal = draftBudget.cap * BUDGET_SCALE}
+				{@const pct = usedPct(spent, draftBudget.cap)}
+				{@const over = capReal > 0 && spent > capReal}
+				{@const changed = (committed?.cap ?? 0) !== draftBudget.cap}
+				<div class="rounded-lg border p-3 {over ? 'border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20' : 'border-gray-100 dark:border-gray-800'}">
 					<div class="flex flex-wrap items-center gap-3">
 						<span
 							class="inline-block h-3 w-3 rounded-full"
@@ -183,31 +206,30 @@
 						<h3 class="min-w-[8rem] font-semibold">{c}</h3>
 
 						<div class="flex items-center gap-2">
+							<span class="text-sm text-gray-500 dark:text-gray-400">Tope</span>
 							<input
 								type="number"
 								min="0"
 								step="1"
-								aria-label="{c} mínimo (miles de colones)"
-								value={budget.min}
-								oninput={(e) => updateMin(c, e.currentTarget.value)}
-								class="w-24 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800"
-							/>
-							<span class="text-gray-400">→</span>
-							<input
-								type="number"
-								min="0"
-								step="1"
-								aria-label="{c} máximo (miles de colones)"
-								value={budget.max}
-								oninput={(e) => updateMax(c, e.currentTarget.value)}
-								class="w-24 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800"
+								aria-label="{c} tope (miles de colones)"
+								value={draftBudget.cap}
+								oninput={(e) => updateCap(c, e.currentTarget.value)}
+								class="w-24 rounded-lg border px-2 py-1 text-sm {changed
+									? 'border-primary bg-primary/5'
+									: 'border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-800'}"
 							/>
 							<span class="text-xs text-gray-400">mil ₡</span>
 						</div>
 
 						<span class="text-xs text-gray-500 dark:text-gray-400">
-							= {formatCurrency(minReal)} – {formatCurrency(maxReal)}
+							= máx {formatCurrency(capReal)}
 						</span>
+
+						{#if changed}
+							<span class="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase text-primary">
+								sin guardar
+							</span>
+						{/if}
 
 						<button
 							type="button"
@@ -219,18 +241,57 @@
 					</div>
 
 					<div class="mt-3">
-						<p class="mb-1 text-xs text-gray-500 dark:text-gray-400">
-							Actual: {formatCurrency(spent)} · Rango: {formatCurrency(minReal)} – {formatCurrency(maxReal)}
+						<p class="mb-1 text-xs {over ? 'font-medium text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}">
+							{currentLabel}: {formatCurrency(spent)} de {formatCurrency(capReal)} · {pct}%
+							{#if over}
+								· excedido por {formatCurrency(spent - capReal)}
+							{/if}
 						</p>
 						<div class="h-3 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
 							<div
 								class="h-full rounded-full transition-all"
-								style="width: {clamp(maxReal ? (spent / maxReal) * 100 : 0, 0, 100)}%; background-color: {color}"
+								style="width: {pct}%; background-color: {over ? '#dc2626' : color}"
 							></div>
 						</div>
 					</div>
 				</div>
 			{/each}
 		</div>
+
+		<!-- Save bar -->
+		<div
+			class="sticky bottom-20 mt-5 flex flex-wrap items-center gap-3 rounded-xl border bg-white/95 p-3 backdrop-blur dark:bg-gray-900/95 md:bottom-4 {budgetStore.isDirty()
+				? 'border-primary/40'
+				: 'border-gray-200 dark:border-gray-800'}"
+		>
+			<span class="text-sm {budgetStore.isDirty() ? 'font-medium text-primary' : 'text-gray-500 dark:text-gray-400'}">
+				{budgetStore.isDirty() ? 'Tienes cambios sin guardar' : 'Sin cambios pendientes'}
+			</span>
+
+			<div class="ml-auto flex items-center gap-2">
+				<button
+					type="button"
+					onclick={discard}
+					disabled={!budgetStore.isDirty()}
+					class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+				>
+					Descartar
+				</button>
+				<button
+					type="button"
+					onclick={save}
+					disabled={!budgetStore.isDirty()}
+					class="rounded-lg bg-primary px-4 py-1.5 text-sm font-semibold text-white hover:bg-primary-dark disabled:cursor-not-allowed disabled:opacity-40"
+				>
+					Guardar cambios
+				</button>
+			</div>
+		</div>
+
+		{#if budgetStore.savedAt}
+			<p class="mt-2 text-center text-xs text-gray-400 dark:text-gray-500">
+				Presupuestos guardados · {budgetStore.savedAt.toLocaleTimeString('es-CR')}
+			</p>
+		{/if}
 	</div>
 </section>

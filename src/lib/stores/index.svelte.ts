@@ -178,52 +178,78 @@ function createDataStore() {
 export const dataStore = createDataStore();
 
 function createBudgetStore() {
+	// `budgets` is the live/committed state. `draft` holds unsaved edits made
+	// in Configuración until the user presses "Guardar cambios".
 	let budgets = $state<Budgets>({ ...DEFAULT_BUDGETS });
+	let draft = $state<Budgets>({ ...DEFAULT_BUDGETS });
+	let savedAt = $state<Date | null>(null);
+
+	function isDirty() {
+		return JSON.stringify(budgets) !== JSON.stringify(draft);
+	}
 
 	function hydrate() {
 		const raw = readStorage(BUDGETS_KEY);
-		if (!raw) return;
-		try {
-			const parsed = JSON.parse(raw) as Record<string, { min?: number; max?: number }>;
-			// Merge into defaults and drop the removed `mode` field.
-			const merged: Budgets = { ...DEFAULT_BUDGETS };
-			for (const [key, value] of Object.entries(parsed)) {
-				if (!value || typeof value.min !== 'number' || typeof value.max !== 'number') continue;
-				merged[key] = { min: value.min, max: value.max };
+		if (raw) {
+			try {
+				const parsed = JSON.parse(raw) as Record<string, { cap?: number; min?: number; max?: number }>;
+				const merged: Budgets = { ...DEFAULT_BUDGETS };
+				for (const [key, value] of Object.entries(parsed)) {
+					if (!value) continue;
+					// Accept the new `cap` shape, and migrate the legacy min/max range
+					// (or the older mode-based shape) by using max as the cap.
+					if (typeof value.cap === 'number') merged[key] = { cap: value.cap };
+					else if (typeof value.max === 'number') merged[key] = { cap: value.max };
+				}
+				budgets = merged;
+			} catch {
+				budgets = { ...DEFAULT_BUDGETS };
 			}
-			budgets = merged;
-		} catch {
-			budgets = { ...DEFAULT_BUDGETS };
 		}
+		draft = { ...budgets };
 	}
 
-	function update(category: string, patch: Partial<{ min: number; max: number }>) {
-		const current =
-			budgets[category] ??
-			DEFAULT_BUDGETS[category as keyof typeof DEFAULT_BUDGETS] ?? { min: 0, max: 0 };
-		budgets = { ...budgets, [category]: { ...current, ...patch } };
-		writeStorage(BUDGETS_KEY, JSON.stringify(budgets));
+	/** Update the draft only; call save() to persist. */
+	function update(category: string, cap: number) {
+		const fallback = DEFAULT_BUDGETS[category as keyof typeof DEFAULT_BUDGETS] ?? { cap: 0 };
+		const current = draft[category] ?? fallback;
+		draft = { ...draft, [category]: { ...current, cap: Math.max(0, Math.ceil(cap) || 0) } };
 	}
 
+	/** Reset a single category in the draft only. */
 	function reset(category: string) {
 		const def = DEFAULT_BUDGETS[category as keyof typeof DEFAULT_BUDGETS];
-		if (def) {
-			budgets = { ...budgets, [category]: { ...def } };
-			writeStorage(BUDGETS_KEY, JSON.stringify(budgets));
-		}
+		if (def) draft = { ...draft, [category]: { ...def } };
 	}
 
+	/** Reset every category in the draft only. */
 	function resetAll() {
-		budgets = { ...DEFAULT_BUDGETS };
+		draft = { ...DEFAULT_BUDGETS };
+	}
+
+	/** Discard unsaved draft changes. */
+	function discard() {
+		draft = { ...budgets };
+	}
+
+	/** Commit the draft and persist it. */
+	function save() {
+		budgets = { ...draft };
 		writeStorage(BUDGETS_KEY, JSON.stringify(budgets));
+		savedAt = new Date();
 	}
 
 	return {
 		get budgets() { return budgets; },
+		get draft() { return draft; },
+		get savedAt() { return savedAt; },
+		isDirty,
 		hydrate,
 		update,
 		reset,
-		resetAll
+		resetAll,
+		discard,
+		save
 	};
 }
 
