@@ -1,16 +1,16 @@
 import {
 	DEFAULT_BUDGETS,
-	AHORRO_DUPLICATE_FACTOR,
 	DATA_URL,
 	CATEGORY_COLORS,
 	BUDGET_SCALE,
+	DEFAULT_AHORRO_MONTHLY,
 	type Budgets
 } from '$lib/config';
 import { fetchCsv } from '$lib/data/fetcher';
 import { normalizeRows } from '$lib/data/normalize';
 import { parseCsv } from '$lib/data/parser';
 import {
-	injectAhorroDuplicates,
+	filterUpToMonth,
 	categoryMom,
 	momDelta,
 	sumByCategory,
@@ -24,8 +24,8 @@ import type { NormalizedRow } from '$lib/types';
 
 const BUDGETS_KEY = 'finanzas-budgets';
 const URL_KEY = 'finanzas-data-url';
-const AHORRO_KEY = 'finanzas-ahorro-factor';
-// DEV ONLY: manual "current month" override. Remove for production.
+const AHORRO_KEY = 'finanzas-ahorro-mensual';
+// DEV ONLY: manual "current month". Remove for production.
 const MONTH_OVERRIDE_KEY = 'finanzas-dev-month-override';
 
 const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
@@ -48,6 +48,61 @@ function writeStorage(key: string, value: string): void {
 	}
 }
 
+/**
+ * Ahorro is not a ledger category in the sheet: it is one amount repeated
+ * every month. These rows are appended to the data so every view (totals,
+ * donut, MoM) treats it like any other category.
+ */
+const AHORRO_ROW_TEMPLATE: NormalizedRow = {
+	fecha: '',
+	mes: '',
+	categoria: 'Ahorro',
+	grupo: '',
+	persona: '',
+	comercio: '',
+	descripcion: 'Ahorro mensual',
+	nota: 'Ahorro',
+	monto: 0,
+	original: {}
+};
+
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function createSettingsStore() {
+	/** Monthly Ahorro amount, in thousands of colones. */
+	let ahorroMensual = $state<number>(DEFAULT_AHORRO_MONTHLY);
+
+	function hydrate() {
+		const stored = readStorage(AHORRO_KEY);
+		if (stored == null) return;
+		const parsed = Number(stored);
+		if (Number.isFinite(parsed)) ahorroMensual = Math.max(0, Math.round(parsed));
+	}
+
+	/**
+	 * One Ahorro row per month, in thousands of colones.
+	 * Passing a month count yields that many rows (e.g. 10 for October).
+	 */
+	function rowsForMonthCount(count: number): NormalizedRow[] {
+		const months = MONTH_ABBR.slice(0, Math.max(0, Math.floor(count)));
+		const monto = ahorroMensual * BUDGET_SCALE;
+		return months.map((mes) => ({ ...AHORRO_ROW_TEMPLATE, mes, monto }));
+	}
+
+	return {
+		get ahorroMensual() { return ahorroMensual; },
+		set ahorroMensual(v: number) {
+			ahorroMensual = Math.max(0, Math.round(v) || 0);
+			writeStorage(AHORRO_KEY, String(ahorroMensual));
+		},
+		rowsForMonthCount,
+		hydrate
+	};
+}
+
+/** Declared before the data store because its rows feed into it. */
+export const settingsStore = createSettingsStore();
+
 function createDataStore() {
 	let csvText = $state<string>('');
 	let loading = $state<boolean>(false);
@@ -58,11 +113,30 @@ function createDataStore() {
 
 	let rawRows = $state<NormalizedRow[]>([]);
 
-	// DEV ONLY: when set, this month is forced as "current" instead of the
-	// latest month found in the sheet. Cleared on production deploys.
-	let devMonthOverride = $state<string | null>(null);
+	// The month treated as "current". Kept in localStorage so it survives reloads.
+	// TODO(dev): this is dev-only tooling; remove before production.
+	let monthFilter = $state<string | null>(null);
 
-	let rows = $derived(injectAhorroDuplicates(rawRows));
+	/** Months present in the sheet, in calendar order. */
+	let allMonths = $derived(sumByMonth(filterUpToMonth(rawRows, null)).map((m) => m.mes));
+	/** The latest month available in the sheet (no filter applied). */
+	let latestAvailableMonth = $derived(
+		allMonths.length ? allMonths[allMonths.length - 1] : null
+	);
+
+	/**
+	 * Everything below is derived from rows TRUNCATED at the selected month,
+	 * so picking August hides September and October completely.
+	 * Ahorro rows are appended: one per month up to the selection.
+	 */
+	let rows = $derived.by(() => {
+		const target = monthFilter ?? latestAvailableMonth;
+		const filtered = filterUpToMonth(rawRows, target);
+		const idx = target ? allMonths.indexOf(target) : -1;
+		const ahorroRows = idx >= 0 ? settingsStore.rowsForMonthCount(idx + 1) : [];
+		return [...filtered, ...ahorroRows];
+	});
+
 	let categorySums = $derived(sumByCategory(rows));
 	let notaSums = $derived(sumByNota(rows));
 	let grupoSums = $derived(sumByGrupo(rows));
@@ -72,10 +146,10 @@ function createDataStore() {
 	let monthSums = $derived(sumByMonth(rows));
 	let availableMonths = $derived(monthSums.map((m) => m.mes));
 
-	/** The month treated as "current": the dev override if set, else the latest. */
+	/** The month currently selected, clamped to what actually has data. */
 	let latestMonth = $derived.by(() => {
-		if (devMonthOverride && availableMonths.includes(devMonthOverride)) return devMonthOverride;
-		return monthSums.length ? monthSums[monthSums.length - 1].mes : null;
+		if (monthFilter && availableMonths.includes(monthFilter)) return monthFilter;
+		return latestAvailableMonth;
 	});
 	let previousMonth = $derived.by(() => {
 		if (!latestMonth) return null;
@@ -102,9 +176,9 @@ function createDataStore() {
 		if (stored) dataUrl = stored;
 	}
 
-	/** DEV ONLY: set or clear the manual current-month override. */
-	function setDevMonthOverride(mes: string | null) {
-		devMonthOverride = mes;
+	/** Set or clear the current month. Filters the entire dataset. */
+	function setMonthFilter(mes: string | null) {
+		monthFilter = mes;
 		if (mes) writeStorage(MONTH_OVERRIDE_KEY, mes);
 		else if (isBrowser) {
 			try {
@@ -115,9 +189,9 @@ function createDataStore() {
 		}
 	}
 
-	function hydrateDevMonthOverride() {
+	function hydrateMonthFilter() {
 		const stored = readStorage(MONTH_OVERRIDE_KEY);
-		if (stored) devMonthOverride = stored;
+		if (stored) monthFilter = stored;
 	}
 
 	async function load(url = dataUrl) {
@@ -160,7 +234,9 @@ function createDataStore() {
 		get total() { return total; },
 		get monthSums() { return monthSums; },
 		get availableMonths() { return availableMonths; },
-		get devMonthOverride() { return devMonthOverride; },
+		get allMonths() { return allMonths; },
+		get latestAvailableMonth() { return latestAvailableMonth; },
+		get monthFilter() { return monthFilter; },
 		get latestMonth() { return latestMonth; },
 		get previousMonth() { return previousMonth; },
 		get latestMonthSum() { return latestMonthSum; },
@@ -168,8 +244,8 @@ function createDataStore() {
 		get momTotal() { return momTotal; },
 		get categoryMomSums() { return categoryMomSums; },
 		hydrateUrl,
-		hydrateDevMonthOverride,
-		setDevMonthOverride,
+		hydrateMonthFilter,
+		setMonthFilter,
 		load,
 		setUrl
 	};
@@ -255,35 +331,13 @@ function createBudgetStore() {
 
 export const budgetStore = createBudgetStore();
 
-function createSettingsStore() {
-	let ahorroFactor = $state<number>(AHORRO_DUPLICATE_FACTOR);
-
-	function hydrate() {
-		const stored = readStorage(AHORRO_KEY);
-		if (stored == null) return;
-		const parsed = Number(stored);
-		if (Number.isFinite(parsed)) ahorroFactor = Math.max(1, Math.round(parsed));
-	}
-
-	return {
-		get ahorroFactor() { return ahorroFactor; },
-		set ahorroFactor(v: number) {
-			ahorroFactor = Math.max(1, Math.round(v) || 1);
-			writeStorage(AHORRO_KEY, String(ahorroFactor));
-		},
-		hydrate
-	};
-}
-
-export const settingsStore = createSettingsStore();
-
 /** Call once on the client to restore persisted state before rendering. */
 export function hydrateStores(): void {
 	dataStore.hydrateUrl();
-	dataStore.hydrateDevMonthOverride();
+	dataStore.hydrateMonthFilter();
 	budgetStore.hydrate();
 	settingsStore.hydrate();
 }
 
-export { DATA_URL, CATEGORY_COLORS, AHORRO_DUPLICATE_FACTOR, BUDGET_SCALE, DEFAULT_BUDGETS };
+export { DATA_URL, CATEGORY_COLORS, BUDGET_SCALE, DEFAULT_BUDGETS, DEFAULT_AHORRO_MONTHLY };
 export type { Budgets };

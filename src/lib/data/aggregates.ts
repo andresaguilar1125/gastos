@@ -1,4 +1,3 @@
-import { AHORRO_DUPLICATE_FACTOR } from '$lib/config';
 import type {
 	CategoryAggregate,
 	CategoryMom,
@@ -43,18 +42,21 @@ export function monthIndex(mes: string | undefined | null): number {
 	return MONTH_ALIASES[key] ?? -1;
 }
 
-export function injectAhorroDuplicates(rows: NormalizedRow[]): NormalizedRow[] {
-	const result: NormalizedRow[] = [];
-	for (const row of rows) {
-		if (row.categoria.toLowerCase() === 'ahorro') {
-			for (let i = 0; i < AHORRO_DUPLICATE_FACTOR; i++) {
-				result.push({ ...row });
-			}
-		} else {
-			result.push(row);
-		}
-	}
-	return result;
+/**
+ * Drop every row that belongs to a month AFTER `target`.
+ * This is what makes the month picker filter the whole dataset instead of
+ * just one card: totals, charts and per-category pages all see the same
+ * truncated data.
+ */
+export function filterUpToMonth(rows: NormalizedRow[], target: string | null): NormalizedRow[] {
+	if (!target) return rows;
+	const limit = monthIndex(target);
+	if (limit < 0) return rows;
+	return rows.filter((row) => {
+		const idx = monthIndex(row.mes);
+		// Rows without a usable month are kept so nothing silently vanishes.
+		return idx < 0 || idx <= limit;
+	});
 }
 
 function sumBy(rows: NormalizedRow[], key: keyof NormalizedRow): Record<string, number> {

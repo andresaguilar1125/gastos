@@ -1,13 +1,16 @@
-export { DATA_URL, AHORRO_DUPLICATE_FACTOR, DEFAULT_BUDGETS, CATEGORY_COLORS } from './config.js';
+export { DATA_URL, DEFAULT_BUDGETS, DEFAULT_AHORRO_MONTHLY, CATEGORY_COLORS } from './config.js';
 export * from './types.js';
 export { parseCsv } from './data/parser.js';
 export { normalizeRows } from './data/normalize.js';
 export {
-	injectAhorroDuplicates,
+	filterUpToMonth,
 	sumByCategory,
+	sumByMonth,
 	sumByNota,
 	sumByGrupo,
 	sumByPersona,
+	momDelta,
+	categoryMom,
 	totalSpend
 } from './data/aggregates.js';
 export { fetchCsv } from './data/fetcher.js';

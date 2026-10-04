@@ -21,8 +21,13 @@
 		Object.values(budgetStore.budgets).reduce((sum, b) => sum + b.cap, 0) * BUDGET_SCALE
 	);
 	/** Caps are monthly, so they are judged against the current month. */
+	let cappedCategories = $derived(
+		dataStore.categoryMomSums.filter(
+			(a) => budgetStore.budgets[a.categoria] ?? DEFAULT_BUDGETS[a.categoria as keyof typeof DEFAULT_BUDGETS]
+		)
+	);
 	let inRangeCount = $derived(
-		dataStore.categoryMomSums.filter((a) => {
+		cappedCategories.filter((a) => {
 			const budget =
 				budgetStore.budgets[a.categoria] ??
 				DEFAULT_BUDGETS[a.categoria as keyof typeof DEFAULT_BUDGETS];
@@ -145,7 +150,7 @@
 		</Card>
 		<Card class="!px-4">
 			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Categorías dentro del tope</p>
-			<p class="mt-1 text-xl font-bold">{inRangeCount} / {dataStore.categoryMomSums.length}</p>
+			<p class="mt-1 text-xl font-bold">{inRangeCount} / {cappedCategories.length}</p>
 		</Card>
 	</div>
 

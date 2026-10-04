@@ -1,8 +1,6 @@
 export const DATA_URL =
 	'https://docs.google.com/spreadsheets/d/e/2PACX-1vQFpRO4TrwAcGggAjB_iZVtdKaKhv59Mhzqy7RhE6JYtYmG704aYHMc6Us1etPgoffJZuLtkk4Ec1fE/pub?output=csv';
 
-export const AHORRO_DUPLICATE_FACTOR = 3;
-
 /**
  * Budgets are a single CAP expressed in thousands of colones: a cap of `70`
  * means "no more than ₡70,000 CRC".
@@ -12,6 +10,9 @@ export const BUDGET_SCALE = 1000;
 /**
  * Default spending caps per category, expressed in THOUSANDS of colones.
  * Multiply by BUDGET_SCALE to get the real CRC ceiling.
+ *
+ * Ahorro is intentionally absent: it is a fixed monthly amount that is
+ * repeated across the year, not a spending cap. Set it in Configuración.
  */
 export const DEFAULT_BUDGETS = {
 	Recibos: { cap: 110 },
@@ -19,9 +20,11 @@ export const DEFAULT_BUDGETS = {
 	Super: { cap: 230 },
 	Familiar: { cap: 95 },
 	Medico: { cap: 35 },
-	Viajes: { cap: 120 },
-	Ahorro: { cap: 600 }
+	Viajes: { cap: 120 }
 };
+
+/** Default monthly Ahorro amount, in thousands of colones (₡400,000). */
+export const DEFAULT_AHORRO_MONTHLY = 400;
 
 export const CATEGORY_COLORS = {
 	Familiar: '#f4b400',
