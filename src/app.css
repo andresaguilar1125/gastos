@@ -1,12 +1,28 @@
 @import 'tailwindcss';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
-	--color-primary: #db4437;
-	--color-primary-dark: #b71c1c;
+	/* Flowbite-inspired palette */
+	--color-primary: #f97316;
+	--color-primary-dark: #ea580c;
+	--color-primary-light: #fed7aa;
 	--color-secondary: #f4b400;
-	--color-success: #0f9d58;
-	--color-warning: #f9ab00;
-	--color-danger: #db4437;
+	--color-success: #16a34a;
+	--color-warning: #f59e0b;
+	--color-danger: #dc2626;
+
+	/* Surfaces */
+	--color-surface: #ffffff;
+	--color-surface-alt: #f9fafb;
+	--color-border: #e5e7eb;
+	--color-muted: #6b7280;
+
+	/* Dark surfaces */
+	--color-surface-dark: #111827;
+	--color-surface-alt-dark: #1f2937;
+	--color-border-dark: #374151;
+	--color-muted-dark: #9ca3af;
 }
 
 /* Safe-area insets for notched phones */
@@ -17,6 +33,24 @@
 	--safe-right: env(safe-area-inset-right, 0px);
 }
 
-html.dark body {
+html {
+	-webkit-text-size-adjust: 100%;
+}
+
+html.dark {
 	color-scheme: dark;
+}
+
+/* Hide scrollbars on the mobile tab strip while keeping it scrollable */
+.no-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+	display: none;
+}
+
+/* Contain overscroll inside scrollable chart areas */
+.overscroll-contain {
+	overscroll-behavior: contain;
 }

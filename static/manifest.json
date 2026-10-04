@@ -1,7 +1,7 @@
 {
-	"name": "Finanzas CRC",
-	"short_name": "Finanzas",
-	"description": "Personal finance dashboard for Costa Rican Colones",
+	"name": "Gastos",
+	"short_name": "Gastos",
+	"description": "Panel de gastos personales en colones costarricenses",
 	"start_url": "/",
 	"display": "standalone",
 	"background_color": "#ffffff",

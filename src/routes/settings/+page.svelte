@@ -49,7 +49,7 @@
 </script>
 
 <svelte:head>
-	<title>Configuración | Finanzas CRC</title>
+	<title>Configuración | Gastos</title>
 </svelte:head>
 
 <section class="mx-auto max-w-7xl space-y-6">

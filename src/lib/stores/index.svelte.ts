@@ -11,8 +11,11 @@ import { normalizeRows } from '$lib/data/normalize';
 import { parseCsv } from '$lib/data/parser';
 import {
 	injectAhorroDuplicates,
+	categoryMom,
+	momDelta,
 	sumByCategory,
 	sumByGrupo,
+	sumByMonth,
 	sumByNota,
 	sumByPersona,
 	totalSpend
@@ -60,6 +63,18 @@ function createDataStore() {
 	let personaSums = $derived(sumByPersona(rows));
 	let total = $derived(totalSpend(rows));
 
+	let monthSums = $derived(sumByMonth(rows));
+	let latestMonth = $derived(monthSums.length ? monthSums[monthSums.length - 1].mes : null);
+	let previousMonth = $derived(monthSums.length > 1 ? monthSums[monthSums.length - 2].mes : null);
+	let latestMonthSum = $derived(
+		monthSums.length ? monthSums[monthSums.length - 1].sum : 0
+	);
+	let previousMonthSum = $derived(monthSums.length > 1 ? monthSums[monthSums.length - 2].sum : 0);
+	let momTotal = $derived(momDelta(latestMonthSum, previousMonthSum, previousMonth != null));
+	let categoryMomSums = $derived(
+		latestMonth ? categoryMom(rows, latestMonth, previousMonth) : []
+	);
+
 	function hydrateUrl() {
 		const stored = readStorage(URL_KEY);
 		if (stored) dataUrl = stored;
@@ -103,6 +118,13 @@ function createDataStore() {
 		get grupoSums() { return grupoSums; },
 		get personaSums() { return personaSums; },
 		get total() { return total; },
+		get monthSums() { return monthSums; },
+		get latestMonth() { return latestMonth; },
+		get previousMonth() { return previousMonth; },
+		get latestMonthSum() { return latestMonthSum; },
+		get previousMonthSum() { return previousMonthSum; },
+		get momTotal() { return momTotal; },
+		get categoryMomSums() { return categoryMomSums; },
 		hydrateUrl,
 		load,
 		setUrl

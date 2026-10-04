@@ -56,6 +56,33 @@ export interface PersonaAggregate {
 	sum: number;
 }
 
+export interface MonthAggregate {
+	/** Month key as it appears in the sheet, e.g. "Oct". */
+	mes: string;
+	sum: number;
+	/** 0-based index within the fixed Jan..Dec order (-1 if unknown). */
+	index: number;
+}
+
+export type MomDirection = 'up' | 'down' | 'flat';
+
+export interface MomDelta {
+	/** Absolute difference (current - previous). */
+	delta: number;
+	/** Percentage change vs the previous month, rounded. */
+	pct: number;
+	direction: MomDirection;
+	/** False when there is no previous month to compare against. */
+	hasPrevious: boolean;
+}
+
+export interface CategoryMom {
+	categoria: string;
+	current: number;
+	previous: number;
+	delta: MomDelta;
+}
+
 export interface BudgetStatus {
 	label: string;
 	color: string;

@@ -12,7 +12,7 @@
 </script>
 
 <svelte:head>
-	<title>Recibos | Finanzas CRC</title>
+	<title>Recibos | Gastos</title>
 </svelte:head>
 
 <section class="mx-auto max-w-7xl space-y-6">
