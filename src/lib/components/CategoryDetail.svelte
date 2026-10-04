@@ -15,6 +15,21 @@
 
 	let { categoria, descripcion }: Props = $props();
 
+	const MONTH_ES: Record<string, string> = {
+		Jan: 'Enero',
+		Feb: 'Febrero',
+		Mar: 'Marzo',
+		Apr: 'Abril',
+		May: 'Mayo',
+		Jun: 'Junio',
+		Jul: 'Julio',
+		Aug: 'Agosto',
+		Sep: 'Septiembre',
+		Oct: 'Octubre',
+		Nov: 'Noviembre',
+		Dec: 'Diciembre'
+	};
+
 	const budget = $derived(
 		budgetStore.budgets[categoria] ?? DEFAULT_BUDGETS[categoria as keyof typeof DEFAULT_BUDGETS]
 	);
@@ -47,8 +62,11 @@
 	const mom = $derived.by(() => {
 		if (monthSums.length === 0)
 			return { delta: 0, pct: 0, direction: 'flat' as const, hasPrevious: false };
-		const current = monthSums[monthSums.length - 1];
-		const previous = monthSums.length > 1 ? monthSums[monthSums.length - 2] : null;
+		// Respect the shared "current month" (including the dev override).
+		const currentMes = dataStore.latestMonth ?? monthSums[monthSums.length - 1].mes;
+		const idx = monthSums.findIndex((m) => m.mes === currentMes);
+		const current = idx >= 0 ? monthSums[idx] : monthSums[monthSums.length - 1];
+		const previous = idx > 0 ? monthSums[idx - 1] : null;
 		const prevSum = previous?.sum ?? 0;
 		const delta = current.sum - prevSum;
 		const pct = previous && prevSum > 0 ? Math.round((delta / prevSum) * 100) : 0;
@@ -60,7 +78,16 @@
 		};
 	});
 
-	const latestLabel = $derived(monthSums.length ? monthSums[monthSums.length - 1].mes : '—');
+	/** The month currently displayed, honoring the shared "current month". */
+	const currentMonth = $derived(
+		dataStore.latestMonth ?? (monthSums.length ? monthSums[monthSums.length - 1].mes : null)
+	);
+	const currentMonthSum = $derived(
+		currentMonth ? (monthSums.find((m) => m.mes === currentMonth)?.sum ?? 0) : 0
+	);
+	const latestLabel = $derived(
+		currentMonth ? (MONTH_ES[currentMonth] ?? currentMonth) : '—'
+	);
 
 	/** Breakdown by the sheet's Nota value (top 12). */
 	const notaSums = $derived.by<NotaAggregate[]>(() => {
@@ -107,7 +134,7 @@
 						Gasto de {latestLabel}
 					</p>
 					<p class="mt-1 text-4xl font-extrabold tracking-tight text-gray-900 dark:text-gray-50">
-						{formatCurrency(monthSums.length ? monthSums[monthSums.length - 1].sum : 0)}
+						{formatCurrency(currentMonthSum)}
 					</p>
 					<div class="mt-2">
 						<DeltaBadge delta={mom} size="md" />
@@ -121,7 +148,7 @@
 				</div>
 			</div>
 			<div class="mt-4 h-64 overscroll-contain">
-				<MonthBarChart data={monthSums} highlight={monthSums.length ? monthSums[monthSums.length - 1].mes : null} />
+				<MonthBarChart data={monthSums} highlight={currentMonth} />
 			</div>
 		</Card>
 

@@ -1,8 +1,24 @@
 <script lang="ts">
+	import { dev } from '$app/environment';
 	import { dataStore, budgetStore, settingsStore, DEFAULT_BUDGETS, DATA_URL } from '$lib/stores/index.svelte';
 	import type { BudgetMode } from '$lib/stores/index.svelte';
 	import { formatCurrency, clamp } from '$lib/budget/status';
 	import { CATEGORY_COLORS } from '$lib/config';
+
+	const MONTH_ES: Record<string, string> = {
+		Jan: 'Enero',
+		Feb: 'Febrero',
+		Mar: 'Marzo',
+		Apr: 'Abril',
+		May: 'Mayo',
+		Jun: 'Junio',
+		Jul: 'Julio',
+		Aug: 'Agosto',
+		Sep: 'Septiembre',
+		Oct: 'Octubre',
+		Nov: 'Noviembre',
+		Dec: 'Diciembre'
+	};
 
 	const modes: { value: BudgetMode; label: string }[] = [
 		{ value: 'exhaust', label: 'Agotar' },
@@ -92,6 +108,49 @@
 			class="mt-1 w-32 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800"
 		/>
 	</div>
+
+	<!-- DEV ONLY: remove this block for production -->
+	{#if dev}
+		<div
+			class="rounded-xl border border-dashed border-amber-400 bg-amber-50 p-4 dark:border-amber-600 dark:bg-amber-950/40"
+		>
+			<div class="flex items-center gap-2">
+				<h2 class="text-lg font-semibold text-amber-900 dark:text-amber-200">Mes actual (dev)</h2>
+				<span
+					class="rounded-full bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase text-white"
+				>
+					solo dev
+				</span>
+			</div>
+			<p class="mt-1 text-sm text-amber-800 dark:text-amber-300">
+				Fuerza el mes mostrado como "actual" en el dashboard y las vistas por categoría.
+				Solo para desarrollo; se elimina al desplegar.
+			</p>
+
+			<label for="dev-month" class="mt-3 block text-sm font-medium text-amber-900 dark:text-amber-200">
+				Mes mostrado como actual
+			</label>
+			<select
+				id="dev-month"
+				value={dataStore.devMonthOverride ?? ''}
+				onchange={(e) => dataStore.setDevMonthOverride(e.currentTarget.value || null)}
+				class="mt-1 w-full max-w-xs rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm dark:border-amber-700 dark:bg-gray-800"
+			>
+				<option value="">Automático (último mes con datos)</option>
+				{#each dataStore.availableMonths as mes (mes)}
+					{@const label = MONTH_ES[mes] ?? mes}
+					<option value={mes}>{label}</option>
+				{/each}
+			</select>
+
+			{#if dataStore.devMonthOverride}
+				<p class="mt-2 text-xs text-amber-800 dark:text-amber-300">
+					Activo: <strong>{MONTH_ES[dataStore.devMonthOverride] ?? dataStore.devMonthOverride}</strong>.
+					El mes anterior se compara automáticamente.
+				</p>
+			{/if}
+		</div>
+	{/if}
 
 	<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
 		<div class="mb-4 flex items-center justify-between">

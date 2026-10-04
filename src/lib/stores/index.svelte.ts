@@ -25,6 +25,8 @@ import type { NormalizedRow } from '$lib/types';
 const BUDGETS_KEY = 'finanzas-budgets';
 const URL_KEY = 'finanzas-data-url';
 const AHORRO_KEY = 'finanzas-ahorro-factor';
+// DEV ONLY: manual "current month" override. Remove for production.
+const MONTH_OVERRIDE_KEY = 'finanzas-dev-month-override';
 
 const isBrowser = typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 
@@ -56,6 +58,10 @@ function createDataStore() {
 
 	let rawRows = $state<NormalizedRow[]>([]);
 
+	// DEV ONLY: when set, this month is forced as "current" instead of the
+	// latest month found in the sheet. Cleared on production deploys.
+	let devMonthOverride = $state<string | null>(null);
+
 	let rows = $derived(injectAhorroDuplicates(rawRows));
 	let categorySums = $derived(sumByCategory(rows));
 	let notaSums = $derived(sumByNota(rows));
@@ -64,12 +70,28 @@ function createDataStore() {
 	let total = $derived(totalSpend(rows));
 
 	let monthSums = $derived(sumByMonth(rows));
-	let latestMonth = $derived(monthSums.length ? monthSums[monthSums.length - 1].mes : null);
-	let previousMonth = $derived(monthSums.length > 1 ? monthSums[monthSums.length - 2].mes : null);
+	let availableMonths = $derived(monthSums.map((m) => m.mes));
+
+	/** The month treated as "current": the dev override if set, else the latest. */
+	let latestMonth = $derived.by(() => {
+		if (devMonthOverride && availableMonths.includes(devMonthOverride)) return devMonthOverride;
+		return monthSums.length ? monthSums[monthSums.length - 1].mes : null;
+	});
+	let previousMonth = $derived.by(() => {
+		if (!latestMonth) return null;
+		const idx = availableMonths.indexOf(latestMonth);
+		return idx > 0 ? availableMonths[idx - 1] : null;
+	});
 	let latestMonthSum = $derived(
-		monthSums.length ? monthSums[monthSums.length - 1].sum : 0
+		latestMonth
+			? (monthSums.find((m) => m.mes === latestMonth)?.sum ?? 0)
+			: monthSums.length
+				? monthSums[monthSums.length - 1].sum
+				: 0
 	);
-	let previousMonthSum = $derived(monthSums.length > 1 ? monthSums[monthSums.length - 2].sum : 0);
+	let previousMonthSum = $derived(
+		previousMonth ? (monthSums.find((m) => m.mes === previousMonth)?.sum ?? 0) : 0
+	);
 	let momTotal = $derived(momDelta(latestMonthSum, previousMonthSum, previousMonth != null));
 	let categoryMomSums = $derived(
 		latestMonth ? categoryMom(rows, latestMonth, previousMonth) : []
@@ -78,6 +100,24 @@ function createDataStore() {
 	function hydrateUrl() {
 		const stored = readStorage(URL_KEY);
 		if (stored) dataUrl = stored;
+	}
+
+	/** DEV ONLY: set or clear the manual current-month override. */
+	function setDevMonthOverride(mes: string | null) {
+		devMonthOverride = mes;
+		if (mes) writeStorage(MONTH_OVERRIDE_KEY, mes);
+		else if (isBrowser) {
+			try {
+				localStorage.removeItem(MONTH_OVERRIDE_KEY);
+			} catch {
+				/* ignore */
+			}
+		}
+	}
+
+	function hydrateDevMonthOverride() {
+		const stored = readStorage(MONTH_OVERRIDE_KEY);
+		if (stored) devMonthOverride = stored;
 	}
 
 	async function load(url = dataUrl) {
@@ -119,6 +159,8 @@ function createDataStore() {
 		get personaSums() { return personaSums; },
 		get total() { return total; },
 		get monthSums() { return monthSums; },
+		get availableMonths() { return availableMonths; },
+		get devMonthOverride() { return devMonthOverride; },
 		get latestMonth() { return latestMonth; },
 		get previousMonth() { return previousMonth; },
 		get latestMonthSum() { return latestMonthSum; },
@@ -126,6 +168,8 @@ function createDataStore() {
 		get momTotal() { return momTotal; },
 		get categoryMomSums() { return categoryMomSums; },
 		hydrateUrl,
+		hydrateDevMonthOverride,
+		setDevMonthOverride,
 		load,
 		setUrl
 	};
@@ -201,6 +245,7 @@ export const settingsStore = createSettingsStore();
 /** Call once on the client to restore persisted state before rendering. */
 export function hydrateStores(): void {
 	dataStore.hydrateUrl();
+	dataStore.hydrateDevMonthOverride();
 	budgetStore.hydrate();
 	settingsStore.hydrate();
 }
