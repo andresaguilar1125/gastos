@@ -3,11 +3,11 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-	/* Flowbite-inspired palette */
-	--color-primary: #f97316;
-	--color-primary-dark: #ea580c;
-	--color-primary-light: #fed7aa;
-	--color-secondary: #f4b400;
+	/* Navy blue primary + forest green secondary */
+	--color-primary: #1e3a8a;
+	--color-primary-dark: #1e40af;
+	--color-primary-light: #c7d2fe;
+	--color-secondary: #166534;
 	--color-success: #16a34a;
 	--color-warning: #f59e0b;
 	--color-danger: #dc2626;

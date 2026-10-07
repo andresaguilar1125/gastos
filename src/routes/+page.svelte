@@ -1,51 +1,26 @@
 <script lang="ts">
-	import { dataStore, budgetStore } from '$lib/stores/index.svelte';
-	import { formatCurrency, evaluateSpend } from '$lib/budget/status';
-	import { CATEGORY_COLORS, DEFAULT_BUDGETS, BUDGET_SCALE } from '$lib/config';
+	import { dataStore, planStore } from '$lib/stores/index.svelte';
+	import { formatCurrency } from '$lib/format';
 	import { setPageTitle } from '$lib/ui/theme';
+	import { formatYearMonth } from '$lib/data/aggregates';
 	import Card from '$lib/components/Card.svelte';
 	import DeltaBadge from '$lib/components/DeltaBadge.svelte';
-	import CategoryDonut from '$lib/components/charts/CategoryDonut.svelte';
-	import CategoryBudgetBar from '$lib/components/charts/CategoryBudgetBar.svelte';
-	import MonthBarChart from '$lib/components/charts/MonthBarChart.svelte';
+	import PiggyBankTable from '$lib/components/PiggyBankTable.svelte';
+	import MonthGrid from '$lib/components/MonthGrid.svelte';
+	import BreakdownTable from '$lib/components/BreakdownTable.svelte';
 
 	setPageTitle('Dashboard');
 
-	const MONTH_ES: Record<string, string> = {
-		Jan: 'Enero', Feb: 'Febrero', Mar: 'Marzo', Apr: 'Abril', May: 'Mayo', Jun: 'Junio',
-		Jul: 'Julio', Aug: 'Agosto', Sep: 'Septiembre', Oct: 'Octubre', Nov: 'Noviembre', Dec: 'Diciembre'
-	};
+	const refLabel = $derived(formatYearMonth(dataStore.refMonth));
+	const prevLabel = $derived(formatYearMonth(dataStore.previousMonth));
 
-	/** Total of all caps in real colones (stored values are in thousands). */
-	let totalCaps = $derived(
-		Object.values(budgetStore.budgets).reduce((sum, b) => sum + b.cap, 0) * BUDGET_SCALE
+	/** Spend this month, excluding Ahorros (savings are not spend). */
+	const spendByCategory = $derived(
+		dataStore.categoryMomSums
+			.filter((row) => row.categoria !== 'Ahorros')
+			.sort((a, b) => b.current - a.current)
 	);
-	/** Caps are monthly, so they are judged against the current month. */
-	let cappedCategories = $derived(
-		dataStore.categoryMomSums.filter(
-			(a) => budgetStore.budgets[a.categoria] ?? DEFAULT_BUDGETS[a.categoria as keyof typeof DEFAULT_BUDGETS]
-		)
-	);
-	let inRangeCount = $derived(
-		cappedCategories.filter((a) => {
-			const budget =
-				budgetStore.budgets[a.categoria] ??
-				DEFAULT_BUDGETS[a.categoria as keyof typeof DEFAULT_BUDGETS];
-			return budget ? evaluateSpend(a.current, budget).inRange : false;
-		}).length
-	);
-
-	let currentLabel = $derived(
-		dataStore.latestMonth ? (MONTH_ES[dataStore.latestMonth] ?? dataStore.latestMonth) : '—'
-	);
-	let previousLabel = $derived(
-		dataStore.previousMonth
-			? (MONTH_ES[dataStore.previousMonth] ?? dataStore.previousMonth)
-			: null
-	);
-	let maxCategorySum = $derived(
-		Math.max(1, ...dataStore.categorySums.map((c) => c.sum))
-	);
+	const topSpend = $derived(spendByCategory.map((row) => ({ label: row.categoria, sum: row.current })));
 </script>
 
 <svelte:head>
@@ -71,22 +46,22 @@
 		</div>
 	{/if}
 
-	<!-- Headline: this month vs last month -->
+	<!-- Headline: this month vs last month (spending only) -->
 	<div class="grid gap-5 lg:grid-cols-3">
 		<Card class="lg:col-span-2">
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div>
 					<p class="text-sm font-medium text-gray-500 dark:text-gray-400">
-						Gasto de {currentLabel}
+						Gasto de {refLabel}
 					</p>
 					<p class="mt-1 text-4xl font-extrabold tracking-tight text-gray-900 dark:text-gray-50">
-						{formatCurrency(dataStore.latestMonthSum)}
+						{formatCurrency(dataStore.refMonthSum)}
 					</p>
 					<div class="mt-2 flex flex-wrap items-center gap-2">
 						<DeltaBadge delta={dataStore.momTotal} size="md" />
-						{#if previousLabel}
+						{#if dataStore.previousMonth}
 							<span class="text-xs text-gray-500 dark:text-gray-400">
-								{previousLabel}: {formatCurrency(dataStore.previousMonthSum)}
+								{prevLabel}: {formatCurrency(dataStore.previousMonthSum)}
 							</span>
 						{/if}
 					</div>
@@ -96,131 +71,42 @@
 					<p class="text-lg font-semibold text-gray-700 dark:text-gray-200">
 						{formatCurrency(dataStore.total)}
 					</p>
+					<p class="mt-1 text-[11px] text-gray-400">sin Ahorros</p>
 				</div>
 			</div>
-
-			<div class="mt-4 h-64 overscroll-contain">
-				<MonthBarChart data={dataStore.monthSums} highlight={dataStore.latestMonth} />
-			</div>
 		</Card>
 
-		<Card title="Estadísticas de este mes" subtitle="Comparado con el mes anterior">
-			<ul class="space-y-3">
-				{#each dataStore.categoryMomSums as row (row.categoria)}
-					<li class="flex items-center gap-3">
-						<span
-							class="h-9 w-1.5 shrink-0 rounded-full"
-							style="background-color: {CATEGORY_COLORS[
-								row.categoria as keyof typeof CATEGORY_COLORS
-							] ?? '#94a3b8'}"
-						></span>
-						<div class="min-w-0 flex-1">
-							<p class="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-								{row.categoria}
-							</p>
-							<p class="text-xs text-gray-500 dark:text-gray-400">
-								{formatCurrency(row.current)}
-							</p>
-						</div>
-						<DeltaBadge delta={row.delta} label="" />
-					</li>
-				{/each}
-				{#if dataStore.categoryMomSums.length === 0}
-					<li class="text-sm text-gray-500">Sin datos para este mes.</li>
-				{/if}
-			</ul>
+		<Card title="Gasto de este mes" subtitle="Por categoría (sin Ahorros)">
+			<BreakdownTable data={topSpend} labelHeader="Categoría" limit={6} />
 		</Card>
 	</div>
 
-	<!-- KPI strip (caps are monthly, judged against the current month) -->
-	<div class="grid grid-cols-2 gap-3 md:grid-cols-4">
-		<Card class="!px-4">
-			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Tope total</p>
-			<p class="mt-1 text-xl font-bold">{formatCurrency(totalCaps)}</p>
-		</Card>
-		<Card class="!px-4">
-			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Gasto ({currentLabel})</p>
-			<p class="mt-1 text-xl font-bold">{formatCurrency(dataStore.latestMonthSum)}</p>
-		</Card>
-		<Card class="!px-4">
-			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">% del tope</p>
-			<p class="mt-1 text-xl font-bold">
-				{totalCaps ? Math.round((dataStore.latestMonthSum / totalCaps) * 100) : 0}%
+	<!-- The single table shape: every category is a piggy bank -->
+	<Card
+		title="Alcancías"
+		subtitle="Aporte mensual, gasto del mes, % del presupuesto y saldo arrastrado · {refLabel}"
+	>
+		<PiggyBankTable banks={dataStore.piggyBanks} />
+		{#if Object.values(planStore.aportes).every((v) => v === 0)}
+			<p class="mt-3 text-xs text-gray-400 dark:text-gray-500">
+				Los aportes están en 0. Configúralos en <a class="underline" href="/settings">Configuración</a>
+				para ver saldos y tu % del presupuesto.
 			</p>
-		</Card>
-		<Card class="!px-4">
-			<p class="text-xs font-medium text-gray-500 dark:text-gray-400">Categorías dentro del tope</p>
-			<p class="mt-1 text-xl font-bold">{inRangeCount} / {cappedCategories.length}</p>
-		</Card>
-	</div>
-
-	<!-- Category shares + top categories -->
-	<div class="grid gap-5 lg:grid-cols-3">
-		<Card title="Distribución por categoría" class="lg:col-span-2">
-			<div class="h-72 overscroll-contain">
-				<CategoryDonut data={dataStore.categorySums} />
-			</div>
-		</Card>
-
-		<Card title="Top categorías" subtitle="Mes actual">
-			<ul class="space-y-4">
-				{#each dataStore.categoryMomSums.slice(0, 5) as row (row.categoria)}
-					<li>
-						<div class="flex items-center justify-between gap-3 text-sm">
-							<span class="font-medium text-gray-900 dark:text-gray-100">{row.categoria}</span>
-							<span class="font-semibold text-gray-700 dark:text-gray-200">
-								{formatCurrency(row.current)}
-							</span>
-						</div>
-						<div class="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-							<div
-								class="h-full rounded-full bg-primary"
-								style="width: {Math.round((row.current / maxCategorySum) * 100)}%"
-							></div>
-						</div>
-					</li>
-				{/each}
-			</ul>
-		</Card>
-	</div>
-
-	<!-- Budget vs spend for the current month -->
-	<Card title="Gasto vs tope" subtitle="Mes actual ({currentLabel}) · línea roja = tope mensual">
-		<div class="h-96 overscroll-contain">
-			<CategoryBudgetBar data={dataStore.categoryMomSums.map((c) => ({ categoria: c.categoria, sum: c.current, pct: 0 }))} budgets={budgetStore.budgets} />
-		</div>
+		{/if}
 	</Card>
 
-	<!-- Category mini-cards for the current month -->
-	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-		{#each dataStore.categoryMomSums as agg (agg.categoria)}
-			{@const budget =
-				budgetStore.budgets[agg.categoria] ??
-				DEFAULT_BUDGETS[agg.categoria as keyof typeof DEFAULT_BUDGETS]}
-			{@const status = budget ? evaluateSpend(agg.current, budget) : null}
-			<Card class="!px-4 !py-3">
-				<div class="flex items-center gap-2">
-					<span
-						class="inline-block h-3 w-3 rounded-full"
-						style="background-color: {CATEGORY_COLORS[
-							agg.categoria as keyof typeof CATEGORY_COLORS
-						] ?? '#888'}"
-					></span>
-					<h3 class="font-semibold">{agg.categoria}</h3>
-				</div>
-				<p class="mt-1 text-2xl font-bold">{formatCurrency(agg.current)}</p>
-				{#if status}
-					<span
-						class="mt-2 inline-block rounded-full px-2 py-1 text-xs font-medium"
-						style="background-color: {status.color}20; color: {status.color}"
-					>
-						{status.label}
-					</span>
-				{/if}
-			</Card>
-		{/each}
-	</div>
-	<!-- Moved from the header: data freshness, centered at the bottom -->
+	<!-- Categories × months: the month-over-month signal -->
+	<Card
+		title="Gasto por mes"
+		subtitle="Celda roja = el gasto del mes supera el aporte"
+	>
+		{#if dataStore.availableMonths.length}
+			<MonthGrid rows={dataStore.monthGrid} months={dataStore.availableMonths} />
+		{:else}
+			<p class="text-sm text-gray-500 dark:text-gray-400">Sin datos para el periodo.</p>
+		{/if}
+	</Card>
+
 	{#if dataStore.fetchedAt}
 		<p class="pt-2 text-center text-xs text-gray-400 dark:text-gray-500">
 			{dataStore.cached ? 'Datos en caché' : 'Datos actualizados'} ·

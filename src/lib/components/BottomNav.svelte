@@ -2,21 +2,23 @@
 	import { page } from '$app/state';
 	import {
 		LayoutDashboard,
-		ShoppingCart,
-		Receipt,
-		Plane,
-		HeartPulse,
+		PiggyBank,
 		UtensilsCrossed,
+		Shapes,
+		Receipt,
+		ShoppingCart,
+		Plane,
 		Settings
 	} from '@lucide/svelte';
 
 	const mobileLinks = [
 		{ href: '/', label: 'Inicio', icon: LayoutDashboard },
-		{ href: '/super', label: 'Super', icon: ShoppingCart },
+		{ href: '/ahorro', label: 'Ahorros', icon: PiggyBank },
+		{ href: '/comida', label: 'Comida', icon: UtensilsCrossed },
+		{ href: '/extras', label: 'Extras', icon: Shapes },
 		{ href: '/recibos', label: 'Recibos', icon: Receipt },
+		{ href: '/super', label: 'Super', icon: ShoppingCart },
 		{ href: '/viajes', label: 'Viajes', icon: Plane },
-		{ href: '/medico', label: 'Medico', icon: HeartPulse },
-		{ href: '/restaurantes', label: 'Rest.', icon: UtensilsCrossed },
 		{ href: '/settings', label: 'Config', icon: Settings }
 	];
 

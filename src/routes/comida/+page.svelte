@@ -2,11 +2,11 @@
 	import { setPageTitle } from '$lib/ui/theme';
 	import CategoryDetail from '$lib/components/CategoryDetail.svelte';
 
-	setPageTitle('Super');
+	setPageTitle('Comida');
 </script>
 
 <svelte:head>
-	<title>Super | Gastos</title>
+	<title>Comida | Gastos</title>
 </svelte:head>
 
-<CategoryDetail categoria="Super" breakdown="superMatch" />
+<CategoryDetail categoria="Comida" breakdown="comercio" />

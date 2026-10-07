@@ -28,7 +28,7 @@ export default defineConfig({
 				name: 'Finanzas CRC',
 				short_name: 'Finanzas',
 				description: 'Personal finance dashboard for Costa Rican Colones',
-				theme_color: '#db4437',
+				theme_color: '#1e3a8a',
 				background_color: '#ffffff',
 				display: 'standalone',
 				scope: '/',

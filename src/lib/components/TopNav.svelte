@@ -1,16 +1,16 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { theme } from '$lib/ui/theme';
-	import { Sun, Moon, Wallet } from '@lucide/svelte';
+	import { Sun, Moon, Wallet, Settings } from '@lucide/svelte';
 
 	const links = [
 		{ href: '/', label: 'Dashboard' },
-		{ href: '/super', label: 'Super' },
+		{ href: '/ahorro', label: 'Ahorros' },
+		{ href: '/comida', label: 'Comida' },
+		{ href: '/extras', label: 'Extras' },
 		{ href: '/recibos', label: 'Recibos' },
-		{ href: '/viajes', label: 'Viajes' },
-		{ href: '/medico', label: 'Medico' },
-		{ href: '/restaurantes', label: 'Restaurantes' },
-		{ href: '/settings', label: 'Config' }
+		{ href: '/super', label: 'Super' },
+		{ href: '/viajes', label: 'Viajes' }
 	];
 
 	function isActive(href: string) {
@@ -55,18 +55,32 @@
 			{/each}
 		</nav>
 
-		<button
-			type="button"
-			onclick={toggleTheme}
-			class="ml-auto rounded-lg border border-gray-200 p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-			aria-label="Cambiar tema"
-			title="Cambiar tema"
-		>
-			{#if $theme === 'dark'}
-				<Sun class="h-5 w-5" />
-			{:else}
-				<Moon class="h-5 w-5" />
-			{/if}
-		</button>
+		<div class="ml-auto flex items-center gap-1">
+			<a
+				href="/settings"
+				class="rounded-lg border p-2 transition-colors {isActive('/settings')
+					? 'border-primary bg-primary/10 text-primary'
+					: 'border-gray-200 text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800'}"
+				aria-label="Configuración"
+				title="Configuración"
+				aria-current={isActive('/settings') ? 'page' : undefined}
+			>
+				<Settings class="h-5 w-5" />
+			</a>
+
+			<button
+				type="button"
+				onclick={toggleTheme}
+				class="rounded-lg border border-gray-200 p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+				aria-label="Cambiar tema"
+				title="Cambiar tema"
+			>
+				{#if $theme === 'dark'}
+					<Sun class="h-5 w-5" />
+				{:else}
+					<Moon class="h-5 w-5" />
+				{/if}
+			</button>
+		</div>
 	</div>
 </header>

@@ -1,218 +1,257 @@
 <script lang="ts">
-	import { dataStore, budgetStore, DEFAULT_BUDGETS } from '$lib/stores/index.svelte';
-	import { formatCurrency, evaluateSpend } from '$lib/budget/status';
-	import { CATEGORY_COLORS, BUDGET_SCALE } from '$lib/config';
+	import { dataStore } from '$lib/stores/index.svelte';
+	import { formatCurrency, formatPct, formatThousands } from '$lib/format';
+	import { formatYearMonth, monthMapForCategory, momDelta } from '$lib/data/aggregates';
+	import { categoryMonthSeries } from '$lib/budget/piggy';
 	import Card from '$lib/components/Card.svelte';
 	import DeltaBadge from '$lib/components/DeltaBadge.svelte';
-	import NotaBarChart from '$lib/components/charts/NotaBarChart.svelte';
-	import MonthBarChart from '$lib/components/charts/MonthBarChart.svelte';
-	import type { NormalizedRow, NotaAggregate } from '$lib/types';
+	import BreakdownTable from '$lib/components/BreakdownTable.svelte';
+	import Heatmap from '$lib/components/Heatmap.svelte';
 
 	interface Props {
 		categoria: string;
-		descripcion: string;
+		/** Breakdown dimension for the detail table. */
+		breakdown?: 'comercio' | 'superMatch' | 'persona';
+		/** Noun used in the KPI copy, e.g. "Gasto" or "Ahorro". */
+		amountLabel?: string;
 	}
 
-	let { categoria, descripcion }: Props = $props();
+	let { categoria, breakdown = 'comercio', amountLabel = 'Gasto' }: Props = $props();
 
-	const MONTH_ES: Record<string, string> = {
-		Jan: 'Enero',
-		Feb: 'Febrero',
-		Mar: 'Marzo',
-		Apr: 'Abril',
-		May: 'Mayo',
-		Jun: 'Junio',
-		Jul: 'Julio',
-		Aug: 'Agosto',
-		Sep: 'Septiembre',
-		Oct: 'Octubre',
-		Nov: 'Noviembre',
-		Dec: 'Diciembre'
-	};
+	const bank = $derived(dataStore.piggyBanks.find((b) => b.categoria === categoria));
+	const aporte = $derived(bank?.aporte ?? 0);
 
-	const budget = $derived(
-		budgetStore.budgets[categoria] ?? DEFAULT_BUDGETS[categoria as keyof typeof DEFAULT_BUDGETS]
-	);
-	const color = $derived(
-		CATEGORY_COLORS[categoria as keyof typeof CATEGORY_COLORS] ?? '#f97316'
-	);
-
-	/** Rows for this category only. */
 	const categoryRows = $derived(
 		dataStore.rows.filter((r) => r.categoria.toLowerCase() === categoria.toLowerCase())
 	);
 
-	/** Monthly totals filtered to this category. */
+	/** Monthly totals for this category, chronological. */
 	const monthSums = $derived.by(() => {
-		const totals: Record<string, { sum: number; index: number }> = {};
-		for (const row of categoryRows) {
-			const key = row.mes?.trim().slice(0, 3);
-			if (!key) continue;
-			totals[key] = totals[key] ?? { sum: 0, index: 0 };
-			totals[key].sum += row.monto;
-		}
-		const order = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-		return Object.entries(totals)
-			.map(([mes, v]) => ({ mes, sum: v.sum, index: order.indexOf(mes) }))
-			.filter((m) => m.index >= 0)
-			.sort((a, b) => a.index - b.index);
+		const map = monthMapForCategory(dataStore.rows, categoria);
+		return Object.entries(map)
+			.map(([yearMonth, sum]) => ({ yearMonth, sum }))
+			.sort((a, b) => (a.yearMonth < b.yearMonth ? -1 : 1));
 	});
 
 	const mom = $derived.by(() => {
-		if (monthSums.length === 0)
-			return { delta: 0, pct: 0, direction: 'flat' as const, hasPrevious: false };
-		// Respect the shared "current month" (including the dev override).
-		const currentMes = dataStore.latestMonth ?? monthSums[monthSums.length - 1].mes;
-		const idx = monthSums.findIndex((m) => m.mes === currentMes);
+		if (monthSums.length === 0) return momDelta(0, 0, false);
+		const ref = dataStore.refMonth;
+		const idx = monthSums.findIndex((m) => m.yearMonth === ref);
 		const current = idx >= 0 ? monthSums[idx] : monthSums[monthSums.length - 1];
 		const previous = idx > 0 ? monthSums[idx - 1] : null;
-		const prevSum = previous?.sum ?? 0;
-		const delta = current.sum - prevSum;
-		const pct = previous && prevSum > 0 ? Math.round((delta / prevSum) * 100) : 0;
-		return {
-			delta,
-			pct,
-			direction: delta > 0 ? ('up' as const) : delta < 0 ? ('down' as const) : ('flat' as const),
-			hasPrevious: previous != null
-		};
+		return momDelta(current.sum, previous?.sum ?? 0, previous != null);
 	});
 
-	/** The month currently displayed, honoring the shared "current month". */
-	const currentMonth = $derived(
-		dataStore.latestMonth ?? (monthSums.length ? monthSums[monthSums.length - 1].mes : null)
-	);
-	const currentMonthSum = $derived(
-		currentMonth ? (monthSums.find((m) => m.mes === currentMonth)?.sum ?? 0) : 0
-	);
-	const latestLabel = $derived(
-		currentMonth ? (MONTH_ES[currentMonth] ?? currentMonth) : '—'
-	);
+	/** Spend of the reference month (the "Gastado" figure everywhere). */
+	const gastoMes = $derived(bank?.esteMes ?? 0);
+	/** Share of the monthly budget used; null when no aporte is configured. */
+	const budgetPct = $derived(bank?.budgetPct ?? null);
+	/** What is left of this month's budget (negative when over). */
+	const restante = $derived(aporte > 0 ? aporte - gastoMes : null);
+	/** Share of the budget still available (absolute value when over). */
+	const restantePct = $derived(budgetPct == null ? null : Math.abs(1 - budgetPct));
 
-	/** Current-month spend for this category (caps reset on the 1st). */
-	const total = $derived(currentMonthSum);
-	const historicTotal = $derived(categoryRows.reduce((sum, r) => sum + r.monto, 0));
+	/** Last 6 months of this category, with the over-budget flag. */
+	const monthSeries = $derived(categoryMonthSeries(dataStore.rows, categoria, aporte, 6));
+	/** Month keys used by both heatmaps, so they always line up. */
+	const heatMonths = $derived(monthSeries.map((point) => point.yearMonth));
 
-	/** Breakdown by the sheet's Nota value (top 12). */
-	const notaSums = $derived.by<NotaAggregate[]>(() => {
+	/** The breakdown rows for the chosen dimension. */
+	const breakdownRows = $derived.by(() => {
 		const totals: Record<string, number> = {};
 		for (const row of categoryRows) {
-			const nota = (row.nota || row.descripcion || 'Sin nota').trim();
-			if (!nota) continue;
-			totals[nota] = (totals[nota] ?? 0) + row.monto;
+			const value =
+				breakdown === 'persona'
+					? row.personaLabel
+					: breakdown === 'superMatch'
+						? row.superMatch
+						: row.comercio || 'Sin comercio';
+			const label =
+				value.trim() ||
+				(breakdown === 'persona'
+					? 'Sin persona'
+					: breakdown === 'superMatch'
+						? '(Sin categoría)'
+						: 'Sin comercio');
+			totals[label] = (totals[label] ?? 0) + row.monto;
 		}
 		return Object.entries(totals)
-			.map(([nota, sum]) => ({ nota, sobre: categoria, sum }))
-			.sort((a, b) => b.sum - a.sum)
-			.slice(0, 12);
+			.map(([label, sum]) => ({ label, sum }))
+			.sort((a, b) => b.sum - a.sum);
 	});
 
-	const status = $derived(budget ? evaluateSpend(total, budget) : null);
+	const breakdownLabel = $derived(
+		breakdown === 'persona' ? 'Persona' : breakdown === 'superMatch' ? 'Super' : 'Comercio'
+	);
 
-	/** Budget cap in real colones (stored value is in thousands). */
-	const budgetCapReal = $derived((budget?.cap ?? 0) * BUDGET_SCALE);
+	const refLabel = $derived(formatYearMonth(dataStore.refMonth));
 
-	const topComercio = $derived.by(() => {
-		const totals: Record<string, number> = {};
+	/**
+	 * The breakdown as a grid: the top 6 labels (by total) × the last 6 months.
+	 * This is the single home for the per-label detail — no duplicate table.
+	 */
+	const breakdownGrid = $derived.by(() => {
+		const topLabels = breakdownRows.slice(0, 6).map((row) => row.label);
+		const cells: Record<string, number[]> = {};
+		for (const label of topLabels) cells[label] = heatMonths.map(() => 0);
+
 		for (const row of categoryRows) {
-			const c = row.comercio || 'Sin comercio';
-			totals[c] = (totals[c] ?? 0) + row.monto;
+			if (!row.yearMonth) continue;
+			const monthIndex = heatMonths.indexOf(row.yearMonth);
+			if (monthIndex < 0) continue;
+			const value =
+				breakdown === 'persona'
+					? row.personaLabel
+					: breakdown === 'superMatch'
+						? row.superMatch
+						: row.comercio || 'Sin comercio';
+			const label = value.trim() || 'Sin comercio';
+			if (cells[label]) cells[label][monthIndex] += row.monto;
 		}
-		return Object.entries(totals)
-			.sort((a, b) => b[1] - a[1])
-			.slice(0, 5);
+
+		return topLabels.map((label) => ({ label, values: cells[label] }));
 	});
+
+	/** Tone for the budget pills: green ≤ 50%, amber ≤ 85%, red above. */
+	function pctTone(pct: number | null): string {
+		if (pct == null) return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+		if (pct > 0.85) return 'bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-400';
+		if (pct > 0.5)
+			return 'bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400';
+		return 'bg-green-50 text-green-700 dark:bg-green-950/50 dark:text-green-400';
+	}
+
+	/** Matching fill colour for the progress bar. */
+	function barTone(pct: number | null): string {
+		if (pct == null) return 'bg-gray-300 dark:bg-gray-700';
+		if (pct > 0.85) return 'bg-red-500';
+		if (pct > 0.5) return 'bg-amber-500';
+		return 'bg-green-500';
+	}
 </script>
 
 <section class="mx-auto max-w-7xl space-y-5">
-	<header class="space-y-1">
-		<h1 class="text-2xl font-bold tracking-tight" style="color: {color}">{categoria}</h1>
-		<p class="text-sm text-gray-500 dark:text-gray-400">{descripcion}</p>
-	</header>
-
 	{#if dataStore.loading}
 		<p class="text-sm text-gray-500">Cargando datos…</p>
 	{/if}
 
-	<div class="grid gap-5 lg:grid-cols-3">
-		<Card class="lg:col-span-2">
-			<div class="flex flex-wrap items-start justify-between gap-4">
-				<div>
-					<p class="text-sm font-medium text-gray-500 dark:text-gray-400">
-						Gasto de {latestLabel}
-					</p>
-					<p class="mt-1 text-4xl font-extrabold tracking-tight text-gray-900 dark:text-gray-50">
-						{formatCurrency(currentMonthSum)}
-					</p>
-					<div class="mt-2">
-						<DeltaBadge delta={mom} size="md" />
-					</div>
-				</div>
-				<div class="text-right">
-					<p class="text-xs font-medium uppercase tracking-wide text-gray-400">Total histórico</p>
-					<p class="text-lg font-semibold text-gray-700 dark:text-gray-200">
-						{formatCurrency(historicTotal)}
-					</p>
-				</div>
+	<!-- Everything lives in one card: months + breakdown side by side, bar below -->
+	<Card>
+		<div class="flex flex-wrap items-baseline justify-between gap-3">
+			<div class="flex flex-wrap items-baseline gap-x-2">
+				<span class="text-sm font-medium text-gray-500 dark:text-gray-400">
+					{amountLabel} de {refLabel}
+				</span>
+				<span class="text-2xl font-extrabold tracking-tight text-gray-900 dark:text-gray-50">
+					{formatCurrency(gastoMes)}
+				</span>
 			</div>
-			<div class="mt-4 h-64 overscroll-contain">
-				<MonthBarChart data={monthSums} highlight={currentMonth} />
-			</div>
-		</Card>
+			<DeltaBadge delta={mom} size="md" />
+		</div>
 
-		<Card title="Resumen">
-			<dl class="space-y-3 text-sm">
-					<div class="flex items-center justify-between">
-					<dt class="text-gray-500 dark:text-gray-400">Tope</dt>
-					<dd class="font-semibold">máx {formatCurrency(budgetCapReal)}</dd>
-				</div>
-				<div class="flex items-center justify-between">
-					<dt class="text-gray-500 dark:text-gray-400">Restante</dt>
-					<dd class="font-semibold">
-						{formatCurrency(Math.max(0, budgetCapReal - total))}
-					</dd>
-				</div>
-				{#if status}
-					<div class="flex items-center justify-between">
-						<dt class="text-gray-500 dark:text-gray-400">Estado</dt>
-						<dd>
-							<span
-								class="rounded-full px-2 py-0.5 text-xs font-medium"
-								style="background-color: {status.color}20; color: {status.color}"
+		<!-- Two columns: the month heatmap and the dimension heatmap, no repeats -->
+		<div class="mt-4 grid gap-x-6 gap-y-6 md:grid-cols-2">
+			<section class="min-w-0 space-y-2">
+				<h3 class="text-xs font-medium uppercase tracking-wide text-gray-400">
+					Últimos 6 meses
+				</h3>
+				{#if monthSeries.length === 0}
+					<p class="text-sm text-gray-500 dark:text-gray-400">
+						Sin movimientos para esta categoría.
+					</p>
+				{:else}
+					<Heatmap
+						months={heatMonths}
+						rows={[{ label: 'Gastado', values: monthSeries.map((p) => p.gasto) }]}
+						format={formatThousands}
+						labelHeader="Mes"
+						highlight={dataStore.refMonth}
+					/>
+					<div class="grid grid-cols-3 gap-2">
+						{#each monthSeries as point, i (point.yearMonth)}
+							{@const prev = i > 0 ? monthSeries[i - 1] : null}
+							<div
+								class="flex flex-col items-center gap-1 rounded-lg border border-gray-100 px-2 py-1.5 dark:border-gray-800"
 							>
-								{status.label}
-							</span>
-						</dd>
+								<span class="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+									{point.mes}
+								</span>
+								<DeltaBadge
+									delta={momDelta(point.gasto, prev?.gasto ?? 0, prev != null)}
+									label=""
+								/>
+							</div>
+						{/each}
 					</div>
 				{/if}
-				<div class="flex items-center justify-between">
-					<dt class="text-gray-500 dark:text-gray-400">Movimientos</dt>
-					<dd class="font-semibold">{categoryRows.length}</dd>
-				</div>
-			</dl>
+			</section>
 
-			{#if topComercio.length}
-				<h3 class="mt-5 text-xs font-semibold uppercase tracking-wide text-gray-400">
-					Top comercios
+			<section class="min-w-0 space-y-2">
+				<h3 class="text-xs font-medium uppercase tracking-wide text-gray-400">
+					Desglose por {breakdownLabel.toLowerCase()}
 				</h3>
-				<ul class="mt-2 space-y-1.5 text-sm">
-					{#each topComercio as [nombre, suma] (nombre)}
-						<li class="flex items-center justify-between gap-2">
-							<span class="truncate text-gray-600 dark:text-gray-300">{nombre}</span>
-							<span class="font-medium">{formatCurrency(suma)}</span>
-						</li>
-					{/each}
-				</ul>
-			{/if}
-		</Card>
-	</div>
+				<Heatmap
+					months={heatMonths}
+					rows={breakdownGrid}
+					format={formatThousands}
+					labelHeader={breakdownLabel}
+					highlight={dataStore.refMonth}
+				/>
+				{#if breakdownRows.length > breakdownGrid.length}
+					<BreakdownTable data={breakdownRows} labelHeader={breakdownLabel} limit={0} />
+				{/if}
+			</section>
+		</div>
 
-	<Card title="Desglose por nota" subtitle="Valores del catálogo de la hoja (top 12)">
-		{#if notaSums.length}
-			<div class="h-[26rem] overscroll-contain">
-				<NotaBarChart data={notaSums} maxBudget={budgetCapReal} />
+		<!-- Budget progress, full width at the bottom -->
+		<div class="mt-5 space-y-2 border-t border-gray-100 pt-4 dark:border-gray-800">
+			<div class="flex items-baseline justify-between gap-3">
+				<p class="flex flex-wrap items-baseline gap-x-1 text-sm text-gray-500 dark:text-gray-400">
+					<span>Gastado</span>
+					<span class="font-semibold text-gray-900 dark:text-gray-50">
+						{formatThousands(gastoMes)}
+					</span>
+					{#if aporte > 0}
+						<span class="font-normal text-gray-400 dark:text-gray-500">
+							de {formatThousands(aporte)}
+						</span>
+					{/if}
+				</p>
+				<span
+					class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {pctTone(
+						budgetPct
+					)}"
+				>
+					{formatPct(budgetPct)}
+				</span>
 			</div>
-		{:else}
-			<p class="text-sm text-gray-500">Sin movimientos para esta categoría.</p>
-		{/if}
+
+			<div class="h-2.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+				<div
+					class="h-full rounded-full {barTone(budgetPct)}"
+					style="width: {Math.min(100, (budgetPct ?? 0) * 100)}%"
+				></div>
+			</div>
+
+			{#if restante != null}
+				<div class="flex items-center justify-between text-xs">
+					<span class="font-medium text-gray-500 dark:text-gray-400">
+						{restante >= 0 ? 'Presupuesto restante' : 'Excedido por'}
+					</span>
+					<span
+						class="font-semibold {restante >= 0
+							? 'text-gray-700 dark:text-gray-200'
+							: 'text-red-600 dark:text-red-400'}"
+					>
+						{formatThousands(Math.abs(restante))} · {formatPct(restantePct)}
+					</span>
+				</div>
+			{:else}
+				<p class="text-xs text-gray-400 dark:text-gray-500">
+					Configura tu aporte en <a class="underline" href="/settings">Configuración</a> para ver tu
+					%.
+				</p>
+			{/if}
+		</div>
 	</Card>
 </section>
