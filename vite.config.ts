@@ -4,6 +4,12 @@ import tailwindcss from '@tailwindcss/vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 import { defineConfig } from 'vite';
 
+/**
+ * GitHub Pages serves project sites under a sub-path (`/<repo>/`). The deploy
+ * workflow sets `BASE_PATH=/gastos`; local dev/build default to the site root.
+ */
+const base = (process.env.BASE_PATH ?? '') as '' | `/${string}`;
+
 export default defineConfig({
 	plugins: [
 		tailwindcss(),
@@ -14,33 +20,35 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 
+			paths: { base },
+
 			// Static adapter for GitHub Pages deployment.
 			adapter: adapter({
 				pages: 'build',
 				assets: 'build',
-				fallback: 'index.html',
+				// GitHub Pages serves this for unknown paths, letting the SPA boot.
+				fallback: '404.html',
 				precompress: false,
 				strict: true
 			})
 		}),
 		SvelteKitPWA({
 			manifest: {
-				name: 'Finanzas CRC',
-				short_name: 'Finanzas',
-				description: 'Personal finance dashboard for Costa Rican Colones',
-				theme_color: '#db4437',
-				background_color: '#ffffff',
+				name: 'Gastos',
+				short_name: 'Gastos',
+				description: 'Panel de gastos personales en colones costarricenses',
+				lang: 'es',
+				theme_color: '#006ECF',
+				background_color: '#F8F8F8',
 				display: 'standalone',
-				scope: '/',
-				start_url: '/',
 				icons: [
-					{ src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
-					{ src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png' }
+					{ src: 'icons/icon-192x192.png', sizes: '192x192', type: 'image/png' },
+					{ src: 'icons/icon-512x512.png', sizes: '512x512', type: 'image/png' }
 				]
 			},
 			workbox: {
 				globPatterns: ['**/*.{js,css,html,png,svg,ico,woff2}']
 			}
-		}),
+		})
 	]
 });

@@ -1,72 +1,76 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { theme } from '$lib/ui/theme';
-	import { Sun, Moon, Wallet } from '@lucide/svelte';
+	import { base } from '$app/paths';
+	import { LayoutDashboard, Wallet, Settings, UtensilsCrossed, Shapes, Receipt, ShoppingCart, Plane } from '@lucide/svelte';
 
 	const links = [
-		{ href: '/', label: 'Dashboard' },
-		{ href: '/super', label: 'Super' },
-		{ href: '/recibos', label: 'Recibos' },
-		{ href: '/viajes', label: 'Viajes' },
-		{ href: '/medico', label: 'Medico' },
-		{ href: '/restaurantes', label: 'Restaurantes' },
-		{ href: '/settings', label: 'Config' }
+		{ href: '/', label: 'Inicio', icon: LayoutDashboard },
+		{ href: '/comida', label: 'Comida', icon: UtensilsCrossed },
+		{ href: '/extras', label: 'Extras', icon: Shapes },
+		{ href: '/recibos', label: 'Recibos', icon: Receipt },
+		{ href: '/super', label: 'Super', icon: ShoppingCart },
+		{ href: '/viajes', label: 'Viajes', icon: Plane }
 	];
 
+	/** Active when the current path (minus the deploy base) matches `href`. */
 	function isActive(href: string) {
-		return page.url.pathname === href || page.url.pathname === `${href}/`;
+		const path = page.url.pathname;
+		const clean = base && path.startsWith(base) ? path.slice(base.length) || '/' : path;
+		return clean === href || clean === `${href}/`;
 	}
 
-	function toggleTheme() {
-		theme.toggle();
-	}
+	/** Live height of the sticky bar, exposed as `--topnav-h` for stacked sticky elements. */
+	let navH = $state(0);
+	$effect(() => {
+		document.documentElement.style.setProperty('--topnav-h', `${navH}px`);
+	});
 </script>
 
 <header
-	class="sticky top-0 z-50 border-b border-gray-200 bg-white/90 backdrop-blur dark:border-gray-800 dark:bg-gray-900/90"
+	bind:clientHeight={navH}
+	class="sticky top-0 z-50 border-b border-accent-4/20 bg-white/90 backdrop-blur"
 	style="padding-top: max(0.5rem, var(--safe-top))"
 >
 	<div class="mx-auto flex max-w-7xl items-center gap-3 px-4 py-2">
-		<a href="/" class="flex items-center gap-2 whitespace-nowrap">
-			<span
-				class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-white"
-			>
+		<a href={`${base}/`} class="flex items-center gap-2 whitespace-nowrap">
+			<span class="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-3 text-white">
 				<Wallet class="h-4.5 w-4.5" aria-hidden="true" />
 			</span>
-			<span class="text-lg font-bold tracking-tight text-gray-900 dark:text-gray-100">Gastos</span>
+			<span class="text-lg font-bold tracking-tight text-accent-5">Gastos</span>
 		</a>
 
 		<nav
 			class="no-scrollbar hidden flex-1 items-center gap-1 overflow-x-auto md:flex"
 			aria-label="Navegación principal"
 		>
-			{#each links as link}
+			{#each links as link (link.href)}
 				<a
-					href={link.href}
-					class="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors {isActive(
+					href={`${base}${link.href}`}
+					class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors {isActive(
 						link.href
 					)
-						? 'bg-primary/10 text-primary'
-						: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100'}"
+						? 'bg-accent-3/10 text-accent-3'
+						: 'text-accent-4 hover:bg-accent-4/10 hover:text-accent-5'}"
 					aria-current={isActive(link.href) ? 'page' : undefined}
 				>
+					<link.icon class="h-4 w-4 shrink-0" aria-hidden="true" />
 					{link.label}
 				</a>
 			{/each}
 		</nav>
 
-		<button
-			type="button"
-			onclick={toggleTheme}
-			class="ml-auto rounded-lg border border-gray-200 p-2 text-gray-600 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-			aria-label="Cambiar tema"
-			title="Cambiar tema"
-		>
-			{#if $theme === 'dark'}
-				<Sun class="h-5 w-5" />
-			{:else}
-				<Moon class="h-5 w-5" />
-			{/if}
-		</button>
+		<div class="ml-auto flex items-center gap-1">
+			<a
+				href={`${base}/settings`}
+				class="rounded-lg border p-2 transition-colors {isActive('/settings')
+					? 'border-accent-3 bg-accent-3/10 text-accent-3'
+					: 'border-accent-4/20 text-accent-4 hover:bg-accent-4/10'}"
+				aria-label="Configuración"
+				title="Configuración"
+				aria-current={isActive('/settings') ? 'page' : undefined}
+			>
+				<Settings class="h-5 w-5" />
+			</a>
+		</div>
 	</div>
 </header>

@@ -1,11 +1,10 @@
 import type {
 	CategoryAggregate,
 	CategoryMom,
-	GrupoAggregate,
+	ComercioAggregate,
 	MomDelta,
 	MonthAggregate,
 	NormalizedRow,
-	NotaAggregate,
 	PersonaAggregate
 } from '$lib/types';
 
@@ -42,26 +41,46 @@ export function monthIndex(mes: string | undefined | null): number {
 	return MONTH_ALIASES[key] ?? -1;
 }
 
-/**
- * Drop every row that belongs to a month AFTER `target`.
- * This is what makes the month picker filter the whole dataset instead of
- * just one card: totals, charts and per-category pages all see the same
- * truncated data.
- */
-export function filterUpToMonth(rows: NormalizedRow[], target: string | null): NormalizedRow[] {
-	if (!target) return rows;
-	const limit = monthIndex(target);
-	if (limit < 0) return rows;
-	return rows.filter((row) => {
-		const idx = monthIndex(row.mes);
-		// Rows without a usable month are kept so nothing silently vanishes.
-		return idx < 0 || idx <= limit;
-	});
+/** Short month token for a `YYYY-MM` key, e.g. "2026-06" → "Jun". */
+export function monthToken(yearMonth: string): string {
+	const mm = Number(yearMonth?.slice(5, 7));
+	return MONTH_ORDER[mm - 1] ?? yearMonth ?? '';
 }
 
-function sumBy(rows: NormalizedRow[], key: keyof NormalizedRow): Record<string, number> {
+/** Human label for a `YYYY-MM` key, e.g. "2026-06" → "Jun 2026". */
+export function formatYearMonth(yearMonth: string | null | undefined): string {
+	if (!yearMonth) return '—';
+	const [year, month] = yearMonth.split('-');
+	return `${MONTH_ORDER[Number(month) - 1] ?? month} ${year}`;
+}
+
+/** Compare two `YYYY-MM` keys chronologically (string order is chronological). */
+export function compareYearMonth(a: string, b: string): number {
+	return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * Shift a `YYYY-MM` key by `delta` months (may be negative), e.g.
+ * `shiftMonth('2026-10', -5)` → `'2026-05'`. Returns `''` for a blank key.
+ */
+export function shiftMonth(yearMonth: string, delta: number): string {
+	if (!yearMonth) return '';
+	const [year, month] = yearMonth.split('-').map(Number);
+	if (!Number.isFinite(year) || !Number.isFinite(month)) return '';
+	const total = year * 12 + (month - 1) + delta;
+	const shiftedYear = Math.floor(total / 12);
+	const shiftedMonth = (((total % 12) + 12) % 12) + 1;
+	return `${shiftedYear}-${String(shiftedMonth).padStart(2, '0')}`;
+}
+
+function sumBy(
+	rows: NormalizedRow[],
+	key: 'categoria' | 'comercio' | 'persona' | 'personaLabel',
+	categoria?: string
+): Record<string, number> {
 	const map: Record<string, number> = {};
 	for (const row of rows) {
+		if (categoria && row.categoria.toLowerCase() !== categoria.toLowerCase()) continue;
 		const value = String(row[key]).trim();
 		if (!value) continue;
 		map[value] = (map[value] ?? 0) + row.monto;
@@ -73,31 +92,27 @@ export function sumByCategory(rows: NormalizedRow[]): CategoryAggregate[] {
 	const totals = sumBy(rows, 'categoria');
 	const grand = Object.values(totals).reduce((a, b) => a + b, 0);
 	return Object.entries(totals)
-		.map(([categoria, sum]) => ({ categoria, sum, pct: grand ? Math.round((sum / grand) * 100) : 0 }))
+		.map(([categoria, sum]) => ({
+			categoria,
+			sum,
+			pct: grand ? Math.round((sum / grand) * 100) : 0
+		}))
 		.sort((a, b) => b.sum - a.sum);
 }
 
-export function sumByNota(rows: NormalizedRow[]): NotaAggregate[] {
-	const recibos = rows.filter((r) => r.categoria.toLowerCase() === 'recibos');
-	const totals = sumBy(recibos, 'nota');
+/** Comercio breakdown, optionally scoped to a category. */
+export function sumByComercio(rows: NormalizedRow[], categoria?: string): ComercioAggregate[] {
+	const totals = sumBy(rows, 'comercio', categoria);
 	return Object.entries(totals)
-		.map(([nota, sum]) => ({ nota, sobre: 'Recibos', sum }))
+		.map(([comercio, sum]) => ({ comercio, sum }))
 		.sort((a, b) => b.sum - a.sum);
 }
 
-export function sumByGrupo(rows: NormalizedRow[]): GrupoAggregate[] {
-	const superRows = rows.filter((r) => r.categoria.toLowerCase() === 'super');
-	const totals = sumBy(superRows, 'grupo');
+/** Persona breakdown (display label), optionally scoped to a category. */
+export function sumByPersona(rows: NormalizedRow[], categoria?: string): PersonaAggregate[] {
+	const totals = sumBy(rows, 'personaLabel', categoria);
 	return Object.entries(totals)
-		.map(([grupo, sum]) => ({ grupo, sum }))
-		.sort((a, b) => b.sum - a.sum);
-}
-
-export function sumByPersona(rows: NormalizedRow[]): PersonaAggregate[] {
-	const viajes = rows.filter((r) => r.categoria.toLowerCase() === 'viajes');
-	const totals = sumBy(viajes, 'persona');
-	return Object.entries(totals)
-		.map(([persona, sum]) => ({ persona, sum }))
+		.map(([label, sum]) => ({ persona: label, label, sum }))
 		.sort((a, b) => b.sum - a.sum);
 }
 
@@ -105,29 +120,44 @@ export function totalSpend(rows: NormalizedRow[]): number {
 	return rows.reduce((sum, r) => sum + r.monto, 0);
 }
 
-/** Sum per month, sorted chronologically (Jan -> Dec). */
+/** Sum per month, keyed by `YYYY-MM` and sorted chronologically. */
 export function sumByMonth(rows: NormalizedRow[]): MonthAggregate[] {
 	const totals: Record<string, number> = {};
 	for (const row of rows) {
-		const index = monthIndex(row.mes);
-		if (index < 0) continue;
-		totals[MONTH_ORDER[index]] = (totals[MONTH_ORDER[index]] ?? 0) + row.monto;
+		if (!row.yearMonth) continue;
+		totals[row.yearMonth] = (totals[row.yearMonth] ?? 0) + row.monto;
 	}
 
 	return Object.entries(totals)
-		.map(([mes, sum]) => ({ mes, sum, index: monthIndex(mes) }))
-		.sort((a, b) => a.index - b.index);
+		.map(([yearMonth, sum]) => ({ yearMonth, mes: monthToken(yearMonth), sum }))
+		.sort((a, b) => compareYearMonth(a.yearMonth, b.yearMonth));
 }
 
 /** Sum per category for a single month. */
-export function sumByCategoryForMonth(rows: NormalizedRow[], mes: string): Record<string, number> {
-	const target = monthIndex(mes);
+export function sumByCategoryForMonth(
+	rows: NormalizedRow[],
+	yearMonth: string
+): Record<string, number> {
 	const totals: Record<string, number> = {};
 	for (const row of rows) {
-		if (monthIndex(row.mes) !== target) continue;
+		if (row.yearMonth !== yearMonth) continue;
 		totals[row.categoria] = (totals[row.categoria] ?? 0) + row.monto;
 	}
 	return totals;
+}
+
+/** Per-month spend map for one category, keyed by `YYYY-MM`. */
+export function monthMapForCategory(
+	rows: NormalizedRow[],
+	categoria: string
+): Record<string, number> {
+	const map: Record<string, number> = {};
+	for (const row of rows) {
+		if (row.categoria.toLowerCase() !== categoria.toLowerCase()) continue;
+		if (!row.yearMonth) continue;
+		map[row.yearMonth] = (map[row.yearMonth] ?? 0) + row.monto;
+	}
+	return map;
 }
 
 /**
@@ -148,9 +178,13 @@ export function momDelta(current: number, previous: number, hasPrevious = true):
 }
 
 /** Per-category current vs previous month comparison. */
-export function categoryMom(rows: NormalizedRow[], currentMes: string, previousMes: string | null): CategoryMom[] {
-	const currentTotals = sumByCategoryForMonth(rows, currentMes);
-	const previousTotals = previousMes ? sumByCategoryForMonth(rows, previousMes) : {};
+export function categoryMom(
+	rows: NormalizedRow[],
+	currentYearMonth: string,
+	previousYearMonth: string | null
+): CategoryMom[] {
+	const currentTotals = sumByCategoryForMonth(rows, currentYearMonth);
+	const previousTotals = previousYearMonth ? sumByCategoryForMonth(rows, previousYearMonth) : {};
 
 	const categories = new Set([...Object.keys(currentTotals), ...Object.keys(previousTotals)]);
 
@@ -162,8 +196,34 @@ export function categoryMom(rows: NormalizedRow[], currentMes: string, previousM
 				categoria,
 				current,
 				previous,
-				delta: momDelta(current, previous, previousMes != null)
+				delta: momDelta(current, previous, previousYearMonth != null)
 			};
 		})
 		.sort((a, b) => b.current - a.current);
+}
+
+/** Week-of-month token (`W1`–`W4`) from a row's `periodo` ("YYYYMM-W##"). */
+function weekToken(periodo: string): string {
+	const match = periodo.match(/W(\d+)$/);
+	return match ? `W${Number(match[1])}` : '';
+}
+
+/**
+ * Spend per week-of-month (W1–W4) for a single month, keyed by category. Powers
+ * Home's weekly chart (categories × weeks). Categories without
+ * rows simply read no key; callers fall back to 0.
+ */
+export function weekTotalsForMonth(
+	rows: NormalizedRow[],
+	yearMonth: string
+): Record<string, Record<string, number>> {
+	const map: Record<string, Record<string, number>> = {};
+	for (const row of rows) {
+		if (row.yearMonth !== yearMonth) continue;
+		const week = weekToken(row.periodo);
+		if (!week) continue;
+		const cell = (map[row.categoria] ??= {});
+		cell[week] = (cell[week] ?? 0) + row.monto;
+	}
+	return map;
 }

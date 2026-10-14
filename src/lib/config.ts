@@ -2,79 +2,55 @@ export const DATA_URL =
 	'https://docs.google.com/spreadsheets/d/e/2PACX-1vQFpRO4TrwAcGggAjB_iZVtdKaKhv59Mhzqy7RhE6JYtYmG704aYHMc6Us1etPgoffJZuLtkk4Ec1fE/pub?output=csv';
 
 /**
- * Budgets are a single CAP expressed in thousands of colones: a cap of `70`
- * means "no more than ₡70,000 CRC".
+ * Aportes are single monthly numbers expressed in thousands of colones: an
+ * aporte of `110` means ₡110,000 CRC per month. There is no cap and no range —
+ * see `docs/logic.md`.
  */
-export const BUDGET_SCALE = 1000;
+export const APORTE_SCALE = 1000;
+
+/** Monthly income in thousands of colones. 0 = not set yet. */
+export const INGRESO_DEFAULT = 1250;
 
 /**
- * Default spending caps per category, expressed in THOUSANDS of colones.
- * Multiply by BUDGET_SCALE to get the real CRC ceiling.
+ * Fixed monthly savings amount in thousands of colones (₡540,000). Used by the
+ * Home's allocation doughnut (surfaced as an editable "Ahorro mensual" in
+ * Configuración).
+ */
+export const AHORRO_MENSUAL_DEFAULT = 540;
+
+/**
+ * How many months of ledger are shown across the app, ending at the reference
+ * month. The user picks one of {@link RANGE_MONTH_OPTIONS} in Configuración.
+ */
+export const DEFAULT_RANGE_MONTHS = 6;
+
+/** Selectable data windows (months). */
+export const RANGE_MONTH_OPTIONS = [3, 6, 9, 12] as const;
+
+/**
+ * The canonical category list. Every entry is a piggy bank.
  *
- * Ahorro is intentionally absent: it is a fixed monthly amount that is
- * repeated across the year, not a spending cap. Set it in Configuración.
+ * The defaults are a sensible starting plan (the user can still tune each row
+ * in Configuración, or reset it to these values).
+ *
+ * `Ahorros` is deliberately absent: it is not a piggy bank, so it must not
+ * appear in the aportes table, the Home sobres or the grid.
  */
-export const DEFAULT_BUDGETS = {
-	Recibos: { cap: 110 },
-	Restaurantes: { cap: 65 },
-	Super: { cap: 230 },
-	Familiar: { cap: 95 },
-	Medico: { cap: 35 },
-	Viajes: { cap: 120 }
+export const DEFAULT_APORTES: Record<string, number> = {
+	Recibos: 100,
+	Super: 200,
+	Comida: 80,
+	Extras: 100,
+	Viajes: 120
 };
 
-/** Default monthly Ahorro amount, in thousands of colones (₡400,000). */
-export const DEFAULT_AHORRO_MONTHLY = 400;
+/** Stable display order for tables and the grid. */
+export const CATEGORIES = ['Recibos', 'Super', 'Comida', 'Extras', 'Viajes'] as const;
 
-export const CATEGORY_COLORS = {
-	Familiar: '#f4b400',
-	Medico: '#0f9d58',
-	Restaurantes: '#7cb342',
-	Recibos: '#f9ab00',
-	Super: '#f9ab00',
-	Viajes: '#f9ab00',
-	Ahorro: '#db4437'
-};
+/** The category whose spend is excluded from spending totals (it is savings). */
+export const SAVINGS_CATEGORY = 'Ahorros';
 
-export type Budget = {
-	/** Maximum allowed spend, in thousands of colones. */
-	cap: number;
-};
-
-export type Budgets = Record<string, Budget>;
-
-export type BudgetStatus = {
-	label: string;
-	color: string;
-	inRange: boolean;
-	/** True when spending is above the cap. */
-	overMax: boolean;
-	/** Percentage of the cap used (rounded, can exceed 100). */
-	usedPct: number;
-};
-
-/** Convert a cap entered in thousands of colones into a real CRC ceiling. */
-export function toRealCap(budget: Budget): number {
-	return budget.cap * BUDGET_SCALE;
-}
-
-/**
- * Spending is judged against a single **monthly** cap: anything at or under
- * the cap is fine, anything above it is over budget. `budget.cap` is in
- * thousands of colones, so it is scaled before comparing.
- */
-export function evaluateSpend(spent: number, budget: Budget): BudgetStatus {
-	const cap = toRealCap(budget);
-	const overMax = spent > cap;
-	const usedPct = cap > 0 ? Math.round((spent / cap) * 100) : 0;
-	// Warn once at least 90% of the cap has been used.
-	const nearLimit = !overMax && usedPct >= 90;
-
-	return {
-		label: overMax ? 'Excedido' : nearLimit ? 'Cerca del tope' : 'Dentro del tope',
-		color: overMax ? '#dc2626' : nearLimit ? '#f59e0b' : '#16a34a',
-		inRange: !overMax,
-		overMax,
-		usedPct
-	};
+/** Convert an aporte entered in thousands of colones into real CRC. */
+export function toRealAporte(aporte: number): number {
+	return aporte * APORTE_SCALE;
 }

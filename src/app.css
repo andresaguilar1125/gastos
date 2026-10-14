@@ -1,28 +1,21 @@
 @import 'tailwindcss';
 
-@custom-variant dark (&:where(.dark, .dark *));
+@theme static {
+	/*
+	 * Single fixed theme: navy/slate neutrals, a blue chrome, and a
+	 * green/teal/blue accent family (no red or yellow anywhere).
+	 */
+	--color-accent-1: #73cc80;
+	--color-accent-2: #0fa69d;
+	--color-accent-3: #006ecf;
+	--color-accent-4: #52647a;
+	--color-accent-5: #2d3f54;
+	--color-accent-6: #f8f8f8;
 
-@theme {
-	/* Flowbite-inspired palette */
-	--color-primary: #f97316;
-	--color-primary-dark: #ea580c;
-	--color-primary-light: #fed7aa;
-	--color-secondary: #f4b400;
-	--color-success: #16a34a;
-	--color-warning: #f59e0b;
-	--color-danger: #dc2626;
-
-	/* Surfaces */
-	--color-surface: #ffffff;
-	--color-surface-alt: #f9fafb;
-	--color-border: #e5e7eb;
-	--color-muted: #6b7280;
-
-	/* Dark surfaces */
-	--color-surface-dark: #111827;
-	--color-surface-alt-dark: #1f2937;
-	--color-border-dark: #374151;
-	--color-muted-dark: #9ca3af;
+	/* Status cues (also the heatmap low → mid → high ramp). */
+	--color-success: #73cc80;
+	--color-warning: #0fa69d;
+	--color-danger: #004c94;
 }
 
 /* Safe-area insets for notched phones */
@@ -35,10 +28,6 @@
 
 html {
 	-webkit-text-size-adjust: 100%;
-}
-
-html.dark {
-	color-scheme: dark;
 }
 
 /* Hide scrollbars on the mobile tab strip while keeping it scrollable */
