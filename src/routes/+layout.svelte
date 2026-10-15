@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
+	import { base } from '$app/paths';
 	import { dataStore, hydrateStores } from '$lib/stores/index.svelte';
 	import TopNav from '$lib/components/TopNav.svelte';
 	import BottomNav from '$lib/components/BottomNav.svelte';
@@ -12,6 +13,13 @@
 	onMount(() => {
 		hydrateStores();
 		dataStore.load();
+
+		// Register the generated service worker (production only; best-effort).
+		if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+			navigator.serviceWorker.register(`${base}/sw.js`).catch(() => {
+				/* offline/PWA is optional */
+			});
+		}
 	});
 </script>
 
